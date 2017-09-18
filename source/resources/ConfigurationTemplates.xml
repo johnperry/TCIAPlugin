@@ -1,0 +1,30 @@
+<TemplateDefinitions>
+
+	<Components>
+
+		<Plugin>
+			<attr name="name" required="yes" default="TCIAPlugin"/>
+			<attr name="class" required="yes" default="edu.uams.tcia.TCIAPlugin" editable="no"/>
+			<attr name="id" required="yes" default="TCIAPlugin"/>
+			<attr name="root" required="yes" default="roots/TCIAPlugin"/>
+			<attr name="importStorageID" required="yes">
+				<helptext>The ID of the DirectoryStorageService stage in the import pipeline.</helptext>
+			</attr>
+			<attr name="anonymizerInputID" required="yes">
+				<helptext>The ID of the DirectoryImportService stage in the anonymizer pipeline.</helptext>
+			</attr>
+			<attr name="anonymizerID" required="yes">
+				<helptext>The ID of the DicomAnonymizer stage in the anonymizer pipeline.</helptext>
+			</attr>
+			<attr name="anonymizerStorageID" required="yes">
+				<helptext>The ID of the DirectoryStorageService stage in the anonymizer pipeline.</helptext>
+			</attr>
+			<attr name="exportInputID" required="yes">
+				<helptext>The ID of the DirectoryImportService stage in the export pipeline.</helptext>
+			</attr>
+		</Plugin>
+
+	</Components>
+
+</TemplateDefinitions>
+
