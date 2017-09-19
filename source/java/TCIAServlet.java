@@ -6,6 +6,7 @@ import org.apache.log4j.Logger;
 import org.rsna.ctp.Configuration;
 import org.rsna.ctp.plugin.Plugin;
 import org.rsna.multipart.UploadedFile;
+import org.rsna.ctp.objects.DicomObject;
 import org.rsna.server.HttpRequest;
 import org.rsna.server.HttpResponse;
 import org.rsna.server.Path;
@@ -14,6 +15,8 @@ import org.rsna.util.FileUtil;
 import org.rsna.util.XmlUtil;
 import org.rsna.ctp.pipeline.PipelineStage;
 import org.rsna.ctp.stdstages.DicomAnonymizer;
+import org.rsna.ctp.stdstages.DirectoryImportService;
+import org.rsna.ctp.stdstages.DirectoryStorageService;
 import org.w3c.dom.*;
 
 /**
@@ -43,6 +46,8 @@ public class TCIAServlet extends Servlet {
 	 * @param res the response object
 	 */
 	public void doGet(HttpRequest req, HttpResponse res) throws Exception {
+		
+/**/	logger.info(req.toString());
 
 		//Make sure the user is authorized to do this.
 		if (!req.userHasRole("admin") && !req.userHasRole("tcia")) {
@@ -51,9 +56,8 @@ public class TCIAServlet extends Servlet {
 			return;
 		}
 
-		//Get the plugin, if possible.
+		//Get the plugin.
 		Plugin p = Configuration.getInstance().getRegisteredPlugin(context);
-
 		if ((p != null) && (p instanceof TCIAPlugin)) {
 			TCIAPlugin plugin = (TCIAPlugin)p;
 			Path path = req.getParsedPath();
@@ -66,17 +70,32 @@ public class TCIAServlet extends Servlet {
 			
 			else {
 				String function = path.element(1);
-				if (function.equals("")) {
+				if (function.equals("listImport")) {
+					//List the files in the import pipeline
+					DirectoryStorageService stage = plugin.getImportStorage();
+					File dir = stage.getRoot();
+/**/				logger.info("Listing: "+dir);
+					Element el = listFiles(dir);
+					res.write(XmlUtil.toString(el));
+				}
+				else if (function.equals("listAnonymized")) {
+					//List the files in the anonymizer pipeline
+					DirectoryStorageService stage = plugin.getAnonymizerStorage();
+					File dir = stage.getRoot();
+					Element el = listFiles(dir);
+					res.write(XmlUtil.toString(el));
+				}
+				else if (function.equals("anonymize")) {
+					//Move the specified files from the importStorage stage to the anonymizerInput stage
 					//...
 				}
-				else if (function.equals("")) {
-					//...
-				}
-				else if (function.equals("")) {
+				else if (function.equals("export")) {
+					//Move the specified files from the importStorage stage to the anonymizerInput stage
 					//...
 				}
 				else {
-					//...
+					//Unknown function
+					res.setResponseCode(res.notfound);
 				}
 			}
 		}
@@ -86,7 +105,6 @@ public class TCIAServlet extends Servlet {
 			res.setResponseCode(res.notfound);
 		}
 
-		//Return the page
 		res.disableCaching();
 		res.setContentType("xml");
 		res.setContentEncoding(req);
@@ -108,14 +126,10 @@ public class TCIAServlet extends Servlet {
 			return;
 		}
 
-		//Get the AuditLog plugin.
+		//Get the plugin.
 		Configuration config = Configuration.getInstance();
 		Plugin p = config.getInstance().getRegisteredPlugin(context);
-
-		if ((req.userHasRole("admin") || req.userHasRole("tcia"))
-				&& (p != null)
-					&& (p instanceof TCIAPlugin)
-						&& req.isReferredFrom(context)) {
+		if ((p != null) && (p instanceof TCIAPlugin)) {
 			TCIAPlugin plugin = (TCIAPlugin)p;
 
 			//Get the posted file
@@ -125,13 +139,13 @@ public class TCIAServlet extends Servlet {
 				LinkedList<UploadedFile> files = req.getParts(dir, maxsize);
 				if (files.size() > 0) {
 					File spreadsheetFile = files.peekFirst().getFile();
-					String anonID = plugin.getAnonymizerID();
-					PipelineStage stage = config.getRegisteredStage(anonID);
-					if ((stage != null) && (stage instanceof DicomAnonymizer)) {
-						DicomAnonymizer da = (DicomAnonymizer)stage;
-						File lutFile = da.getLookupTableFile();
-						if (updateLUT(lutFile, spreadsheetFile)) res.write("<OK");
-						else res.write("<NOTOK/>");
+					DicomAnonymizer da = plugin.getAnonymizer();
+					File lutFile = da.getLookupTableFile();
+					if (updateLUT(lutFile, spreadsheetFile)) {
+						res.write("<OK/>");
+					}
+					else {
+						res.write("<NOTOK/>");
 					}
 				}
 			}
@@ -152,4 +166,47 @@ public class TCIAServlet extends Servlet {
 		return true;
 	}
 	
+	//List files
+	private Element listFiles(File dir) {
+		try {
+			Document doc = XmlUtil.getDocument();
+			Element root = doc.createElement("DicomFiles");
+			doc.appendChild(root);
+			listFiles(root, dir);
+			return root;
+		}
+		catch (Exception ex) {
+			logger.warn("Unable to create XML document", ex);
+			return null;
+		}
+	}
+	
+	private void listFiles(Element parent, File file) {
+		Document doc = parent.getOwnerDocument();
+		if (file.isDirectory()) {
+			Element dirEl = doc.createElement("dir");
+			dirEl.setAttribute("name", file.getName());
+			parent.appendChild(dirEl);
+			for (File f : file.listFiles()) {
+				listFiles(dirEl, f);
+			}
+		}
+		else if (file.isFile()) {
+			try {
+				DicomObject dob = new DicomObject(file);
+				Element fileEl = doc.createElement("DicomObject");
+				fileEl.setAttribute("name", file.getName());
+				setAttributes(fileEl, dob);
+				parent.appendChild(fileEl);
+			}
+			catch (Exception skip) { logger.warn("oops" + skip); }
+		}
+	}
+	
+	private void setAttributes(Element el, DicomObject dob) {
+		el.setAttribute("PatientName", dob.getPatientName());
+		el.setAttribute("PatientID", dob.getPatientID());
+		el.setAttribute("StudyDate", dob.getStudyDate());	
+		el.setAttribute("Modality", dob.getModality());
+	}
 }

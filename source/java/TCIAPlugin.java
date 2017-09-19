@@ -3,15 +3,20 @@ package edu.uams.tcia;
 import java.io.BufferedReader;
 import java.io.File;
 import org.apache.log4j.Logger;
+import org.rsna.ctp.Configuration;
+import org.rsna.ctp.pipeline.PipelineStage;
 import org.rsna.ctp.plugin.AbstractPlugin;
+import org.rsna.ctp.stdstages.DicomAnonymizer;
+import org.rsna.ctp.stdstages.DicomAnonymizer;
+import org.rsna.ctp.stdstages.DirectoryImportService;
+import org.rsna.ctp.stdstages.DirectoryStorageService;
+import org.rsna.server.HttpServer;
+import org.rsna.server.Path;
+import org.rsna.server.ServletSelector;
+import org.rsna.server.Users;
 import org.rsna.util.FileUtil;
 import org.rsna.util.StringUtil;
 import org.w3c.dom.Element;
-import org.rsna.server.Path;
-import org.rsna.server.HttpServer;
-import org.rsna.server.ServletSelector;
-import org.rsna.server.Users;
-import org.rsna.ctp.Configuration;
 
 /**
  * A Plugin to interface the TCIA wizard into CTP.
@@ -25,6 +30,11 @@ public class TCIAPlugin extends AbstractPlugin {
 	String anonymizerID;
 	String anonymizerStorageID;
 	String exportInputID;
+	DirectoryStorageService importStorage;
+	DirectoryImportService anonymizerInput;
+	DicomAnonymizer anonymizer;
+	DirectoryStorageService anonymizerStorage;
+	DirectoryImportService exportInput;
 	
 	/**
 	 * IMPORTANT: When the constructor is called, neither the
@@ -57,20 +67,59 @@ public class TCIAPlugin extends AbstractPlugin {
 		ServletSelector selector = server.getServletSelector();
 		selector.addServlet(id, TCIAServlet.class);
 		
-		//Check that all the referenced stages exist
-		checkStage(importStorageID);
-		checkStage(anonymizerInputID);
-		checkStage(anonymizerID);
-		checkStage(anonymizerStorageID);
-		checkStage(exportInputID);
+		//Get all the referenced stages
+		importStorage = getDSSStage(importStorageID);
+		anonymizerInput = getDISStage(anonymizerInputID);
+		anonymizer = getDAStage(anonymizerID);
+		anonymizerStorage = getDSSStage(anonymizerStorageID);
+		exportInput = getDISStage(exportInputID);
 		
 		logger.info("TCIAPlugin started with context \""+id+"\"");
 	}
 	
-	private void checkStage(String id) {
-		if (Configuration.getInstance().getRegisteredStage(id) == null) {
+	private DirectoryStorageService getDSSStage(String id) {
+		PipelineStage stage = Configuration.getInstance().getRegisteredStage(id);
+		if (stage == null) {
 			logger.warn(name+": referenced stage does not exist ("+id+")");
+			return null;
 		}
+		if (stage instanceof DirectoryStorageService) {
+			return (DirectoryStorageService)stage;
+		}
+		else {
+			logger.warn(name+": referenced stage is not a DirectoryStorageService ("+id+")");
+			return null;
+		}		
+	}
+	
+	private DirectoryImportService getDISStage(String id) {
+		PipelineStage stage = Configuration.getInstance().getRegisteredStage(id);
+		if (stage == null) {
+			logger.warn(name+": referenced stage does not exist ("+id+")");
+			return null;
+		}
+		if (stage instanceof DirectoryImportService) {
+			return (DirectoryImportService)stage;
+		}
+		else {
+			logger.warn(name+": referenced stage is not a DirectoryImportService ("+id+")");
+			return null;
+		}		
+	}
+	
+	private DicomAnonymizer getDAStage(String id) {
+		PipelineStage stage = Configuration.getInstance().getRegisteredStage(id);
+		if (stage == null) {
+			logger.warn(name+": referenced stage does not exist ("+id+")");
+			return null;
+		}
+		if (stage instanceof DicomAnonymizer) {
+			return (DicomAnonymizer)stage;
+		}
+		else {
+			logger.warn(name+": referenced stage is not a DicomAnonymizer ("+id+")");
+			return null;
+		}		
 	}
 	
 	/**
@@ -106,6 +155,41 @@ public class TCIAPlugin extends AbstractPlugin {
 	 */
 	public String getExportInputID() {
 		return exportInputID;
+	}
+	
+	/**
+	 * Get the DirectoryStorageService holding the objects received by the import pipeline.
+	 */
+	public DirectoryStorageService getImportStorage() {
+		return importStorage;
+	}
+	
+	/**
+	 * Get the DirectoryImportService holding the objects ready for processing by the anonymizer pipeline.
+	 */
+	public DirectoryImportService getAnonymizerInput() {
+		return anonymizerInput;
+	}
+	
+	/**
+	 * Get the DicomAnonymizer.
+	 */
+	public DicomAnonymizer getAnonymizer() {
+		return anonymizer;
+	}
+
+	/**
+	 * Get the DirectoryStorageService holding the objects already processed by the DicomAnonymizer.
+	 */
+	public DirectoryStorageService getAnonymizerStorage() {
+		return anonymizerStorage;
+	}
+	
+	/**
+	 * Get the DirectoryImportService holding the objects ready for export by the export pipeline.
+	 */
+	public DirectoryImportService getExportInput() {
+		return exportInput;
 	}
 	
 }
