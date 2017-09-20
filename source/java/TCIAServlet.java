@@ -4,19 +4,20 @@ import java.io.File;
 import java.util.LinkedList;
 import org.apache.log4j.Logger;
 import org.rsna.ctp.Configuration;
-import org.rsna.ctp.plugin.Plugin;
-import org.rsna.multipart.UploadedFile;
+import org.rsna.ctp.objects.FileObject;
 import org.rsna.ctp.objects.DicomObject;
+import org.rsna.ctp.pipeline.PipelineStage;
+import org.rsna.ctp.plugin.Plugin;
+import org.rsna.ctp.stdstages.DicomAnonymizer;
+import org.rsna.ctp.stdstages.DirectoryImportService;
+import org.rsna.ctp.stdstages.DirectoryStorageService;
+import org.rsna.multipart.UploadedFile;
 import org.rsna.server.HttpRequest;
 import org.rsna.server.HttpResponse;
 import org.rsna.server.Path;
 import org.rsna.servlets.Servlet;
 import org.rsna.util.FileUtil;
 import org.rsna.util.XmlUtil;
-import org.rsna.ctp.pipeline.PipelineStage;
-import org.rsna.ctp.stdstages.DicomAnonymizer;
-import org.rsna.ctp.stdstages.DirectoryImportService;
-import org.rsna.ctp.stdstages.DirectoryStorageService;
 import org.w3c.dom.*;
 
 /**
@@ -74,7 +75,6 @@ public class TCIAServlet extends Servlet {
 					//List the files in the import pipeline
 					DirectoryStorageService stage = plugin.getImportStorage();
 					File dir = stage.getRoot();
-/**/				logger.info("Listing: "+dir);
 					Element el = listFiles(dir);
 					res.write(XmlUtil.toString(el));
 				}
@@ -86,12 +86,20 @@ public class TCIAServlet extends Servlet {
 					res.write(XmlUtil.toString(el));
 				}
 				else if (function.equals("anonymize")) {
-					//Move the specified files from the importStorage stage to the anonymizerInput stage
-					//...
+					//Move files from the importStorage stage to the anonymizerInput stage.
+					DirectoryStorageService fromStage = plugin.getImportStorage();
+					DirectoryImportService toStage = plugin.getAnonymizerInput();
+					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""));
+					if (ok) res.write("<OK/>");
+					else res.write("<NOTOK/>");
 				}
 				else if (function.equals("export")) {
-					//Move the specified files from the importStorage stage to the anonymizerInput stage
-					//...
+					//Move files from the importStorage stage to the anonymizerInput stage.
+					DirectoryStorageService fromStage = plugin.getAnonymizerStorage();
+					DirectoryImportService toStage = plugin.getExportInput();
+					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""));
+					if (ok) res.write("<OK/>");
+					else res.write("<NOTOK/>");
 				}
 				else {
 					//Unknown function
@@ -164,6 +172,33 @@ public class TCIAServlet extends Servlet {
 	private boolean updateLUT(File lutFile, File spreadsheetFile) {
 		//...
 		return true;
+	}
+	
+	//Move files from a storage directory to an import directory.
+	//If the path identifies a file, move the file.
+	//If the path identifies a directory move the contents of the
+	//directory and all its subdirectories.
+	//Note that the destination is a flat directory (with no substructure).
+	private boolean moveFile(File fromDir, File toDir, String path) {
+		if (path.equals("")) return false;
+		File fromParent = (new File(fromDir.getAbsolutePath())).getParentFile();
+		File file = new File(fromParent, path);
+		if (!file.exists()) return false;
+		return moveFile(file, toDir);
+	}
+	
+	private boolean moveFile(File file, File toDir) {
+		boolean ok = true;
+		if (file.isDirectory()) {
+			for (File f : file.listFiles()) {
+				ok &= moveFile(f, toDir);
+			}
+		}
+		else if (file.isFile()) {
+			FileObject fob = new FileObject(file);
+			ok = fob.moveToDirectory(toDir);
+		}
+		return ok;
 	}
 	
 	//List files
