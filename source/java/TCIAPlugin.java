@@ -61,12 +61,6 @@ public class TCIAPlugin extends AbstractPlugin {
 		//Add the tcia role
 		Users.getInstance().addRole("tcia");
 		
-		//Install the TCIAServlet
-		Configuration config = Configuration.getInstance();
-		HttpServer server = config.getServer();
-		ServletSelector selector = server.getServletSelector();
-		selector.addServlet(id, TCIAServlet.class);
-		
 		//Get all the referenced stages
 		importStorage = getDSSStage(importStorageID);
 		anonymizerInput = getDISStage(anonymizerInputID);
@@ -74,6 +68,12 @@ public class TCIAPlugin extends AbstractPlugin {
 		anonymizerStorage = getDSSStage(anonymizerStorageID);
 		exportInput = getDISStage(exportInputID);
 		
+		//Install the TCIAServlet
+		Configuration config = Configuration.getInstance();
+		HttpServer server = config.getServer();
+		ServletSelector selector = server.getServletSelector();
+		selector.addServlet(id, TCIAServlet.class);
+				
 		logger.info("TCIAPlugin started with context \""+id+"\"");
 	}
 	

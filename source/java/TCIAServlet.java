@@ -2,12 +2,14 @@ package edu.uams.tcia;
 
 import java.io.File;
 import java.util.LinkedList;
+import java.util.Properties;
 import org.apache.log4j.Logger;
 import org.rsna.ctp.Configuration;
 import org.rsna.ctp.objects.FileObject;
 import org.rsna.ctp.objects.DicomObject;
 import org.rsna.ctp.pipeline.PipelineStage;
 import org.rsna.ctp.plugin.Plugin;
+import org.rsna.ctp.stdstages.anonymizer.LookupTable;
 import org.rsna.ctp.stdstages.DicomAnonymizer;
 import org.rsna.ctp.stdstages.DirectoryImportService;
 import org.rsna.ctp.stdstages.DirectoryStorageService;
@@ -16,6 +18,7 @@ import org.rsna.server.HttpRequest;
 import org.rsna.server.HttpResponse;
 import org.rsna.server.Path;
 import org.rsna.servlets.Servlet;
+import org.rsna.util.ExcelWorksheet;
 import org.rsna.util.FileUtil;
 import org.rsna.util.XmlUtil;
 import org.w3c.dom.*;
@@ -170,8 +173,35 @@ public class TCIAServlet extends Servlet {
 	}
 	
 	private boolean updateLUT(File lutFile, File spreadsheetFile) {
-		//...
-		return true;
+		LookupTable lut = LookupTable.getInstance(lutFile);
+		Properties props = lut.getProperties();
+		boolean ok = true;
+		try {
+			String sheetName = ExcelWorksheet.getWorksheetNames(spreadsheetFile).peek();
+			ExcelWorksheet sheet = new ExcelWorksheet(spreadsheetFile, sheetName);
+			int lastRow = sheet.getLastRow();
+			String lastColumnID = sheet.getLastColumn();
+			int lastColumn = ExcelWorksheet.getColumn(lastColumnID);
+			for (int row=3; row<=lastRow; row++) {
+				String phi = sheet.getCell("A" + row);
+				for (int col=1; col<=lastColumn; col++) {
+					String colID = ExcelWorksheet.getColumnID(col);
+					String type = sheet.getCell(colID + "1");
+					String replacement = sheet.getCell(colID + row);
+					if (replacement != null) {
+						String key = type + "/" + phi;
+						String current = props.getProperty(key);
+						if (current != null) {
+							ok &= current.equals(replacement);
+						}
+						props.setProperty(key, replacement);
+					}
+				}
+			}
+			lut.save();
+		}
+		catch (Exception unable) { ok = false; }
+		return ok;
 	}
 	
 	//Move files from a storage directory to an import directory.
