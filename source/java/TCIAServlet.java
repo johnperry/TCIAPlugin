@@ -1,6 +1,8 @@
 package edu.uams.tcia;
 
 import java.io.File;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.LinkedList;
 import java.util.Properties;
 import org.apache.log4j.Logger;
@@ -13,6 +15,7 @@ import org.rsna.ctp.stdstages.anonymizer.LookupTable;
 import org.rsna.ctp.stdstages.DicomAnonymizer;
 import org.rsna.ctp.stdstages.DirectoryImportService;
 import org.rsna.ctp.stdstages.DirectoryStorageService;
+import org.rsna.ctp.stdstages.HttpExportService;
 import org.rsna.multipart.UploadedFile;
 import org.rsna.server.HttpRequest;
 import org.rsna.server.HttpResponse;
@@ -20,6 +23,7 @@ import org.rsna.server.Path;
 import org.rsna.servlets.Servlet;
 import org.rsna.util.ExcelWorksheet;
 import org.rsna.util.FileUtil;
+import org.rsna.util.HttpUtil;
 import org.rsna.util.XmlUtil;
 import org.w3c.dom.*;
 
@@ -51,7 +55,7 @@ public class TCIAServlet extends Servlet {
 	 */
 	public void doGet(HttpRequest req, HttpResponse res) throws Exception {
 		
-/**/	logger.info(req.toString());
+/**/	logger.debug(req.toString());
 
 		//Make sure the user is authorized to do this.
 		if (!req.userHasRole("admin") && !req.userHasRole("tcia")) {
@@ -59,6 +63,9 @@ public class TCIAServlet extends Servlet {
 			res.send();
 			return;
 		}
+
+		//Set the Content-Type for most functions
+		res.setContentType("xml");
 
 		//Get the plugin.
 		Plugin p = Configuration.getInstance().getRegisteredPlugin(context);
@@ -104,6 +111,78 @@ public class TCIAServlet extends Servlet {
 					if (ok) res.write("<OK/>");
 					else res.write("<NOTOK/>");
 				}
+				else if (function.equals("getQuarantineURL")) {
+					//Return the URL of the DicomAnonymizer quarantine servlet
+					DicomAnonymizer da = plugin.getAnonymizer();
+					int pIndex = da.getPipeline().getPipelineIndex();
+					int sIndex = da.getStageIndex();
+					String qs = "?p="+pIndex+"&amp;s="+sIndex;
+					String url = "/quarantines"+qs;
+					res.write("<quarantine stage=\""+da.getName()+"\" url=\""+url+"\"/>");
+				}
+				else if (function.equals("getQuarantineSummary")) {
+					//Return a summary of the files in the DicomAnonymizer quarasntine
+					DicomAnonymizer da = plugin.getAnonymizer();
+					//TBD
+				}
+				else if (function.equals("getAvailableSpace")) {
+					File root = new File("/");
+					String name = root.getAbsolutePath();
+					long oneMB = 1024 * 1024;
+					long free = root.getUsableSpace()/oneMB;
+					res.write("<space partition=\""+name+"\" available=\""+free+"\" units=\"MB\"/>");
+				}
+				else if (function.equals("clearManifest")) {
+					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
+					manifestLog.clear();
+					res.write("<OK/>");
+				}
+				else if (function.equals("listManifest")) {
+					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
+					if (path.length() > 2) {
+						if (path.element(2).equals("csv")) {
+							res.write(manifestLog.toCSV());
+							res.setContentType("csv");
+							res.setContentDisposition(new File("Manifest.csv"));
+						}
+						else {
+							try { res.write(XmlUtil.toPrettyString(manifestLog.toXML())); }
+							catch (Exception ex) { res.write("<UNABLE/>"); }
+						}
+					}
+				}
+				else if (function.equals("exportManifest")) {
+					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
+					String manifest = manifestLog.toCSV();
+					res.write("<UnderConstruction/>");
+				}
+				else if (function.equals("getExportQueueSize")) {
+					HttpExportService httpExport = plugin.getExportOutput();
+					int size = httpExport.getQueueManager().size();
+					res.write("<queue stage=\""+httpExport.getName()+"\" size=\""+size+"\"/>");
+				}
+				else if (function.equals("reset")) {
+					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
+					manifestLog.clear();
+					clearDirectory(plugin.getImportStorage().getRoot());
+					clearDirectory(plugin.getAnonymizerStorage().getRoot());
+					res.write("<OK/>");
+				}
+				else if (function.equals("shutdown")) {
+					Configuration config = Configuration.getInstance();
+					boolean ssl = config.getServerSSL();
+					int port = config.getServerPort();
+					URL url = new URL( "http" + (ssl?"s":"") + "://127.0.0.1:" + port + "/shutdown" );
+					HttpURLConnection conn = HttpUtil.getConnection(url);
+					conn.setRequestMethod("GET");
+					conn.setRequestProperty("servicemanager", "stayalive");
+					conn.connect();
+					String result = FileUtil.getText( conn.getInputStream() );
+					if (result.contains("Goodbye.")) {
+						res.write("<OK/>");
+					}
+					else res.write("<NOTOK/>");
+				}
 				else {
 					//Unknown function
 					res.setResponseCode(res.notfound);
@@ -117,7 +196,6 @@ public class TCIAServlet extends Servlet {
 		}
 
 		res.disableCaching();
-		res.setContentType("xml");
 		res.setContentEncoding(req);
 		res.send();
 	}
@@ -204,6 +282,19 @@ public class TCIAServlet extends Servlet {
 		return ok;
 	}
 	
+	//Delete all the files in a directory
+	private boolean clearDirectory(File dir) {
+		boolean ok = true;
+		if (dir.exists() && dir.isDirectory()) {
+			File[] files = dir.listFiles();
+			for (File f : files) {
+				logger.info("Deleting "+f);
+				ok &= FileUtil.deleteAll(f);
+			}
+		}
+		return ok;
+	}
+	
 	//Move files from a storage directory to an import directory.
 	//If the path identifies a file, move the file.
 	//If the path identifies a directory move the contents of the
@@ -264,7 +355,7 @@ public class TCIAServlet extends Servlet {
 				setAttributes(fileEl, dob);
 				parent.appendChild(fileEl);
 			}
-			catch (Exception skip) { logger.warn("oops" + skip); }
+			catch (Exception skip) { logger.warn("oops", skip); }
 		}
 	}
 	

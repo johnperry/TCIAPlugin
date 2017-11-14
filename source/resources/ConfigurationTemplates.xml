@@ -3,10 +3,10 @@
 	<Components>
 
 		<Plugin>
-			<attr name="name" required="yes" default="TCIAPlugin"/>
+			<attr name="name" required="yes" default="CollectionTCIAPlugin"/>
 			<attr name="class" required="yes" default="edu.uams.tcia.TCIAPlugin" editable="no"/>
 			<attr name="id" required="yes" default="TCIAPlugin"/>
-			<attr name="root" required="yes" default="roots/TCIAPlugin"/>
+			<attr name="root" required="yes" default="Collection/TCIAPlugin"/>
 			<attr name="importStorageID" required="yes">
 				<helptext>The ID of the DirectoryStorageService stage in the import pipeline.</helptext>
 			</attr>
@@ -22,8 +22,36 @@
 			<attr name="exportInputID" required="yes">
 				<helptext>The ID of the DirectoryImportService stage in the export pipeline.</helptext>
 			</attr>
+			<attr name="exportOutputID" required="yes">
+				<helptext>The ID of the HttpExportService stage in the export pipeline.</helptext>
+			</attr>
+			<attr name="exportManifestLogID" required="yes">
+				<helptext>The ID of the ManifestLogger plugin.</helptext>
+			</attr>
 		</Plugin>
 
+		<Plugin>
+			<attr name="name" required="yes" default="CollectionManifestLog"/>
+			<attr name="class" required="yes" default="edu.uams.tcia.ManifestLogPlugin" editable="no"/>
+			<attr name="id" required="yes" default="CollectionManifestLog"/>
+			<attr name="root" required="yes" default="Collection/ManifestLog"/>
+			<attr name="exportURL" required="yes">
+				<helptext>The URL of the destination to which to send manifests.</helptext>
+			</attr>
+			<attr name="manifestLogTags" required="yes" default="">
+				<helptext>List of DICOM tags to log, separated by semicolons (tag1; tag2; etc.)</helptext>
+			</attr>
+		</Plugin>
+
+		<Processor>
+			<attr name="name" required="yes" default="ManifestLogger"/>
+			<attr name="class" required="yes" default="edu.uams.tcia.ManifestLogger" editable="no"/>
+			<attr name="root" required="yes" default="roots/CollectionManifestLogger"/>
+			<attr name="id" required="yes" default="CollectionManifestLogger"/>
+			<attr name="manifestLogID" required="yes" default="CollectionManifestLog">
+				<helptext>The ID of the ManifestLogPlugin.</helptext>
+			</attr>
+		</Processor>
 	</Components>
 
 </TemplateDefinitions>
