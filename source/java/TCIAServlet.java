@@ -1,8 +1,6 @@
 package edu.uams.tcia;
 
 import java.io.File;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.LinkedList;
 import java.util.Properties;
 import org.apache.log4j.Logger;
@@ -167,21 +165,6 @@ public class TCIAServlet extends Servlet {
 					clearDirectory(plugin.getImportStorage().getRoot());
 					clearDirectory(plugin.getAnonymizerStorage().getRoot());
 					res.write("<OK/>");
-				}
-				else if (function.equals("shutdown")) {
-					Configuration config = Configuration.getInstance();
-					boolean ssl = config.getServerSSL();
-					int port = config.getServerPort();
-					URL url = new URL( "http" + (ssl?"s":"") + "://127.0.0.1:" + port + "/shutdown" );
-					HttpURLConnection conn = HttpUtil.getConnection(url);
-					conn.setRequestMethod("GET");
-					conn.setRequestProperty("servicemanager", "stayalive");
-					conn.connect();
-					String result = FileUtil.getText( conn.getInputStream() );
-					if (result.contains("Goodbye.")) {
-						res.write("<OK/>");
-					}
-					else res.write("<NOTOK/>");
 				}
 				else {
 					//Unknown function
