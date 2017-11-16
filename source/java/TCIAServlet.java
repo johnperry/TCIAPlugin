@@ -66,9 +66,9 @@ public class TCIAServlet extends Servlet {
 		res.setContentType("xml");
 
 		//Get the plugin.
-		Plugin p = Configuration.getInstance().getRegisteredPlugin(context);
-		if ((p != null) && (p instanceof TCIAPlugin)) {
-			TCIAPlugin plugin = (TCIAPlugin)p;
+		Plugin pl = Configuration.getInstance().getRegisteredPlugin(context);
+		if ((pl != null) && (pl instanceof TCIAPlugin)) {
+			TCIAPlugin plugin = (TCIAPlugin)pl;
 			Path path = req.getParsedPath();
 			
 			//Handle a request with no function identification
@@ -98,16 +98,14 @@ public class TCIAServlet extends Servlet {
 					DirectoryStorageService fromStage = plugin.getImportStorage();
 					DirectoryImportService toStage = plugin.getAnonymizerInput();
 					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""));
-					if (ok) res.write("<OK/>");
-					else res.write("<NOTOK/>");
+					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("export")) {
 					//Move files from the importStorage stage to the anonymizerInput stage.
 					DirectoryStorageService fromStage = plugin.getAnonymizerStorage();
 					DirectoryImportService toStage = plugin.getExportInput();
 					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""));
-					if (ok) res.write("<OK/>");
-					else res.write("<NOTOK/>");
+					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("getQuarantineURL")) {
 					//Return the URL of the DicomAnonymizer quarantine servlet
@@ -150,9 +148,16 @@ public class TCIAServlet extends Servlet {
 					}
 				}
 				else if (function.equals("exportManifest")) {
+					boolean ok = true;
 					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
-					String manifest = manifestLog.toCSV();
-					res.write("<UnderConstruction/>");
+					File dir = plugin.getExportInput().getImportDirectory();
+					try {
+						String manifest = manifestLog.toCSV();
+						File file = File.createTempFile("MAN-", ".csv", dir);
+						ok = FileUtil.setText(file, manifest);
+					}
+					catch (Exception ex) { ok = false; }
+					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("getExportQueueSize")) {
 					HttpExportService httpExport = plugin.getExportOutput();
@@ -165,6 +170,66 @@ public class TCIAServlet extends Servlet {
 					clearDirectory(plugin.getImportStorage().getRoot());
 					clearDirectory(plugin.getAnonymizerStorage().getRoot());
 					res.write("<OK/>");
+				}
+				else if (function.equals("listFiles")) {
+					try {
+						File dir = new File(req.getParameter("dir","/")).getAbsoluteFile();
+						File parent = dir.getParentFile();
+						File[] files = dir.listFiles();
+						Document doc = XmlUtil.getDocument();
+						Element root = doc.createElement("dir");
+						root.setAttribute("name", dir.getName());
+						root.setAttribute(
+							"parent", 
+							((parent == null) ? "" : parent.getAbsolutePath())
+						);
+						doc.appendChild(root);
+						for (File file : files) {
+							if (file.isDirectory()) {
+								Element e = doc.createElement("dir");
+								e.setAttribute("name", file.getName());
+								root.appendChild(e);
+							}
+						}
+						for (File file : files) {
+							if (file.isFile()) {
+								Element e = doc.createElement("file");
+								e.setAttribute("name", file.getName());
+								root.appendChild(e);
+							}
+						}
+						res.write(XmlUtil.toPrettyString(root));
+					}
+					catch (Exception ex) { res.write("<dir/>"); }
+				}
+				else if (function.equals("submitFile")) {
+					boolean ok = true;
+					try {
+						String pathseq = req.getParameter("file");
+						String[] paths = pathseq.split("\\|");
+						File destdir = plugin.getImportInput().getImportDirectory();
+						for (String p : paths) {
+							File file = new File(p);
+							if (file.exists()) ok &= submitFile(file, destdir);
+							else ok = false;
+						}
+					}
+					catch (Exception ex) { ok = false; }
+					res.write( ok ? "<OK/>" : "<NOTOK/>" );
+				}
+				else if (function.equals("listElements")) {
+					try {
+						File file = new File(req.getParameter("file"));
+						DicomObject dob = new DicomObject(file);
+						res.write("<html>\n<head>\n");
+						res.write("<title>"+file.getName()+"</title>\n");
+						res.write("<link rel=\"Stylesheet\" type=\"text/css\" media=\"all\" href=\"/DicomListing.css\"></link>");
+						res.write("</head>\n<body>\n<center>\n");
+						res.write(dob.getElementTable());
+						res.write("</center>\n</body>\n</html>\n");
+						res.setContentType("html");
+					}
+					catch (Exception ex) { res.setResponseCode(res.notfound); }
 				}
 				else {
 					//Unknown function
@@ -303,6 +368,33 @@ public class TCIAServlet extends Servlet {
 			ok = fob.moveToDirectory(toDir);
 		}
 		return ok;
+	}
+
+	//Submit DICOM files to an import directory.
+	//If the supplied file is a file, copy the file.
+	//If the supplied file is a directory copy the contents of the
+	//directory and all its subdirectories.
+	//Note that the destination is a flat directory (with no substructure).
+	private boolean submitFile(File file, File toDir) {
+		boolean ok = true;
+		if (!file.exists()) return false;
+		if (file.isDirectory()) {
+			File[] files = file.listFiles();
+			for (File f : files) {
+				ok &= submitFile(f, toDir);
+			}
+		}
+		else if (file.isFile()) {
+			try {
+				DicomObject dob = null;
+				try { dob = new DicomObject(file); }
+				catch (Exception ex) { return true; } //ignore non-DICOM files
+				File destFile = File.createTempFile("DCM-", ".dcm", toDir);
+				ok &= dob.copyTo(destFile);
+			}
+			catch (Exception ex) { ok = false; }
+		}
+		return ok;			
 	}
 	
 	//List files

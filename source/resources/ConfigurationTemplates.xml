@@ -7,6 +7,9 @@
 			<attr name="class" required="yes" default="edu.uams.tcia.TCIAPlugin" editable="no"/>
 			<attr name="id" required="yes" default="TCIAPlugin"/>
 			<attr name="root" required="yes" default="Collection/TCIAPlugin"/>
+			<attr name="importInputID" required="yes">
+				<helptext>The ID of the DirectoryImportService stage in the import pipeline.</helptext>
+			</attr>
 			<attr name="importStorageID" required="yes">
 				<helptext>The ID of the DirectoryStorageService stage in the import pipeline.</helptext>
 			</attr>
@@ -35,9 +38,6 @@
 			<attr name="class" required="yes" default="edu.uams.tcia.ManifestLogPlugin" editable="no"/>
 			<attr name="id" required="yes" default="CollectionManifestLog"/>
 			<attr name="root" required="yes" default="Collection/ManifestLog"/>
-			<attr name="exportURL" required="yes">
-				<helptext>The URL of the destination to which to send manifests.</helptext>
-			</attr>
 			<attr name="manifestLogTags" required="yes" default="">
 				<helptext>List of DICOM tags to log, separated by semicolons (tag1; tag2; etc.)</helptext>
 			</attr>

@@ -28,6 +28,7 @@ public class TCIAPlugin extends AbstractPlugin {
 	
 	static final Logger logger = Logger.getLogger(TCIAPlugin.class);
 	
+	String importInputID;
 	String importStorageID;
 	String anonymizerInputID;
 	String anonymizerID;
@@ -35,6 +36,7 @@ public class TCIAPlugin extends AbstractPlugin {
 	String exportInputID;
 	String exportOutputID;
 	String exportManifestLogID;
+	DirectoryImportService importInput;
 	DirectoryStorageService importStorage;
 	DirectoryImportService anonymizerInput;
 	DicomAnonymizer anonymizer;
@@ -53,6 +55,7 @@ public class TCIAPlugin extends AbstractPlugin {
 	 */
 	public TCIAPlugin(Element element) {
 		super(element);
+		this.importInputID = element.getAttribute("importInputID").trim();
 		this.importStorageID = element.getAttribute("importStorageID").trim();
 		this.anonymizerInputID = element.getAttribute("anonymizerInputID").trim();
 		this.anonymizerID = element.getAttribute("anonymizerID").trim();
@@ -88,6 +91,7 @@ public class TCIAPlugin extends AbstractPlugin {
 		}
 		
 		//Get all the referenced stages
+		importInput = getDISStage(importInputID);
 		importStorage = getDSSStage(importStorageID);
 		anonymizerInput = getDISStage(anonymizerInputID);
 		anonymizer = getDAStage(anonymizerID);
@@ -183,52 +187,10 @@ public class TCIAPlugin extends AbstractPlugin {
 	}
 	
 	/**
-	 * Get the ID of the DirectoryStorageService holding the objects received by the import pipeline.
+	 * Get the DirectoryImportService receiving files in the import pipeline.
 	 */
-	public String getImportStorageID() {
-		return importStorageID;
-	}
-	
-	/**
-	 * Get the ID of the DirectoryImportService holding the objects ready for processing by the anonymizer pipeline.
-	 */
-	public String getAnonymizerInputID() {
-		return anonymizerInputID;
-	}
-	
-	/**
-	 * Get the ID of the DicomAnonymizer.
-	 */
-	public String getAnonymizerID() {
-		return anonymizerID;
-	}
-
-	/**
-	 * Get the ID of the DirectoryStorageService holding the objects already processed by the DicomAnonymizer.
-	 */
-	public String getAnonymizerStorageID() {
-		return anonymizerStorageID;
-	}
-	
-	/**
-	 * Get the ID of the DirectoryImportService holding the objects ready for export by the export pipeline.
-	 */
-	public String getExportInputID() {
-		return exportInputID;
-	}
-	
-	/**
-	 * Get the ID of the HttpExportService of the export pipeline.
-	 */
-	public String getExportOutputID() {
-		return exportOutputID;
-	}
-	
-	/**
-	 * Get the ID of the ManifestLog.
-	 */
-	public String getExportManifestLogID() {
-		return exportManifestLogID;
+	public DirectoryImportService getImportInput() {
+		return importInput;
 	}
 	
 	/**

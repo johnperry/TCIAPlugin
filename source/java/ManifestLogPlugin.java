@@ -20,7 +20,6 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	
 	static final Logger logger = Logger.getLogger(ManifestLogPlugin.class);
 	
-	String exportURL;
 	String[] manifestElementNames = null;
 	LinkedList<Integer> manifestLogTags = null;
 	LinkedList<Entry> manifest = null;
@@ -35,7 +34,6 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	 */
 	public ManifestLogPlugin(Element element) {
 		super(element);
-		this.exportURL = element.getAttribute("exportURL").trim();
 		manifestElementNames = element.getAttribute("manifestLogTags").split(";");
 		manifestLogTags = new LinkedList<Integer>();
 		for (String name : manifestElementNames) {
