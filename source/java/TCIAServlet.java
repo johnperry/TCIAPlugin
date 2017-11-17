@@ -164,13 +164,6 @@ public class TCIAServlet extends Servlet {
 					int size = httpExport.getQueueManager().size();
 					res.write("<queue stage=\""+httpExport.getName()+"\" size=\""+size+"\"/>");
 				}
-				else if (function.equals("reset")) {
-					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
-					manifestLog.clear();
-					clearDirectory(plugin.getImportStorage().getRoot());
-					clearDirectory(plugin.getAnonymizerStorage().getRoot());
-					res.write("<OK/>");
-				}
 				else if (function.equals("listFiles")) {
 					try {
 						File dir = new File(req.getParameter("dir","/")).getAbsoluteFile();
@@ -230,6 +223,25 @@ public class TCIAServlet extends Servlet {
 						res.setContentType("html");
 					}
 					catch (Exception ex) { res.setResponseCode(res.notfound); }
+				}
+				else if (function.equals("getImage")) {
+					try {
+						File file = new File(req.getParameter("file"));
+						DicomObject dob = new DicomObject(file);
+						File jpeg = File.createTempFile("DCM-", ".jpeg");
+						dob.saveAsJPEG(jpeg, 0, 1024, 512, -1);
+						res.write(jpeg);
+						res.setContentType(jpeg);
+					}
+					catch (Exception ex) { res.setResponseCode(res.notfound); }
+				}
+				else if (function.equals("reset")) {
+					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
+					manifestLog.clear();
+					clearDirectory(plugin.getImportStorage().getRoot());
+					clearDirectory(plugin.getAnonymizerStorage().getRoot());
+					plugin.getAnonymizer().getQuarantine().deleteAll();
+					res.write("<OK/>");
 				}
 				else {
 					//Unknown function
