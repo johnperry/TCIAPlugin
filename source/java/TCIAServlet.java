@@ -1,6 +1,8 @@
 package edu.uams.tcia;
 
 import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.LinkedList;
 import java.util.Properties;
 import org.apache.log4j.Logger;
@@ -211,8 +213,8 @@ public class TCIAServlet extends Servlet {
 					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("listElements")) {
+					File file = new File(req.getParameter("file"));
 					try {
-						File file = new File(req.getParameter("file"));
 						DicomObject dob = new DicomObject(file);
 						res.write("<html>\n<head>\n");
 						res.write("<title>"+file.getName()+"</title>\n");
@@ -222,18 +224,30 @@ public class TCIAServlet extends Servlet {
 						res.write("</center>\n</body>\n</html>\n");
 						res.setContentType("html");
 					}
-					catch (Exception ex) { res.setResponseCode(res.notfound); }
+					catch (Exception ex) { 
+						if (!file.exists()) res.setResponseCode(res.notfound); 
+						else {
+							res.setResponseCode(res.servererror);
+							logger.warn("Unable to parse "+file, ex);
+						}
+					}
 				}
 				else if (function.equals("getImage")) {
+					File file = new File(req.getParameter("file"));
 					try {
-						File file = new File(req.getParameter("file"));
 						DicomObject dob = new DicomObject(file);
 						File jpeg = File.createTempFile("DCM-", ".jpeg");
 						dob.saveAsJPEG(jpeg, 0, 1024, 512, -1);
 						res.write(jpeg);
 						res.setContentType(jpeg);
 					}
-					catch (Exception ex) { res.setResponseCode(res.notfound); }
+					catch (Exception ex) { 
+						if (!file.exists()) res.setResponseCode(res.notfound); 
+						else {
+							res.setResponseCode(res.servererror);
+							logger.warn("Unable to get Image for "+file, ex);
+						}
+					}
 				}
 				else if (function.equals("reset")) {
 					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
@@ -415,7 +429,7 @@ public class TCIAServlet extends Servlet {
 			Document doc = XmlUtil.getDocument();
 			Element root = doc.createElement("DicomFiles");
 			doc.appendChild(root);
-			listFiles(root, dir);
+			listFiles(root, dir, true);
 			return root;
 		}
 		catch (Exception ex) {
@@ -424,14 +438,18 @@ public class TCIAServlet extends Servlet {
 		}
 	}
 	
-	private void listFiles(Element parent, File file) {
+	private void listFiles(Element parent, File file, boolean showParent) {
 		Document doc = parent.getOwnerDocument();
 		if (file.isDirectory()) {
 			Element dirEl = doc.createElement("dir");
 			dirEl.setAttribute("name", file.getName());
+			if (showParent) {
+				File parentFile = file.getParentFile();
+				dirEl.setAttribute("parent", parentFile.getAbsolutePath());
+			}
 			parent.appendChild(dirEl);
 			for (File f : file.listFiles()) {
-				listFiles(dirEl, f);
+				listFiles(dirEl, f, false);
 			}
 		}
 		else if (file.isFile()) {
