@@ -5,6 +5,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.LinkedList;
 import java.util.Properties;
+import javax.swing.filechooser.FileSystemView;
 import org.apache.log4j.Logger;
 import org.rsna.ctp.Configuration;
 import org.rsna.ctp.objects.FileObject;
@@ -123,8 +124,20 @@ public class TCIAServlet extends Servlet {
 					DicomAnonymizer da = plugin.getAnonymizer();
 					//TBD
 				}
+				else if (function.equals("getFileSystemRoots")) {
+					FileSystemView fsv = FileSystemView.getFileSystemView();
+					File[] roots = File.listRoots();
+					StringBuffer sb = new StringBuffer();
+					sb.append("<roots>");
+					for (File root : roots) {
+						sb.append("<root name=\""+root.getAbsolutePath()+"\" ");
+						sb.append("desc=\""+fsv.getSystemTypeDescription(root)+"\"/>");
+					}
+					sb.append("</roots>");
+					res.write(sb.toString());
+				}
 				else if (function.equals("getAvailableSpace")) {
-					File root = new File("/");
+					File root = new File(req.getParameter("root", "/"));
 					String name = root.getAbsolutePath();
 					long oneMB = 1024 * 1024;
 					long free = root.getUsableSpace()/oneMB;
@@ -469,5 +482,6 @@ public class TCIAServlet extends Servlet {
 		el.setAttribute("PatientID", dob.getPatientID());
 		el.setAttribute("StudyDate", dob.getStudyDate());	
 		el.setAttribute("Modality", dob.getModality());
+		el.setAttribute("Series", dob.getSeriesNumber());
 	}
 }
