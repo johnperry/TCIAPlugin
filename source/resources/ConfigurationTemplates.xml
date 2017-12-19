@@ -38,9 +38,6 @@
 			<attr name="class" required="yes" default="edu.uams.tcia.ManifestLogPlugin" editable="no"/>
 			<attr name="id" required="yes" default="CollectionManifestLog"/>
 			<attr name="root" required="yes" default="Collection/ManifestLog"/>
-			<attr name="manifestLogTags" required="yes" default="">
-				<helptext>List of DICOM tags to log, separated by semicolons (tag1; tag2; etc.)</helptext>
-			</attr>
 		</Plugin>
 
 		<Processor>
@@ -50,6 +47,9 @@
 			<attr name="id" required="yes" default="CollectionManifestLogger"/>
 			<attr name="manifestLogID" required="yes" default="CollectionManifestLog">
 				<helptext>The ID of the ManifestLogPlugin.</helptext>
+			</attr>
+			<attr name="cacheID" required="yes" default="CollectionObjectCache">
+				<helptext>The ID of the ObjectCache in the Anonymization pipeline.</helptext>
 			</attr>
 		</Processor>
 	</Components>

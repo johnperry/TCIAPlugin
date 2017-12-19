@@ -34,6 +34,9 @@ import org.w3c.dom.*;
 public class TCIAServlet extends Servlet {
 
 	static final Logger logger = Logger.getLogger(TCIAServlet.class);
+	
+	TCIAPlugin tciaPlugin = null;
+	ManifestLogPlugin manifestPlugin = null;
 
 	/**
 	 * Construct a TCIAServlet. Note: the TCIAServlet
@@ -68,51 +71,53 @@ public class TCIAServlet extends Servlet {
 		//Set the Content-Type for most functions
 		res.setContentType("xml");
 
-		//Get the plugin.
+		//Get the plugins.
 		Plugin pl = Configuration.getInstance().getRegisteredPlugin(context);
 		if ((pl != null) && (pl instanceof TCIAPlugin)) {
-			TCIAPlugin plugin = (TCIAPlugin)pl;
+			tciaPlugin = (TCIAPlugin)pl;
+			manifestPlugin = tciaPlugin.getExportManifestLog();
+
 			Path path = req.getParsedPath();
 			
 			//Handle a request with no function identification
 			if (path.length() == 1) {
-				//Return the configuration of the plugin
-				res.write( XmlUtil.toPrettyString(plugin.getConfigElement()) );
+				//Return the configuration of the tciaPlugin
+				res.write( XmlUtil.toPrettyString(tciaPlugin.getConfigElement()) );
 			}
 			
 			else {
 				String function = path.element(1);
 				if (function.equals("listImport")) {
 					//List the files in the import pipeline
-					DirectoryStorageService stage = plugin.getImportStorage();
+					DirectoryStorageService stage = tciaPlugin.getImportStorage();
 					File dir = stage.getRoot();
 					Element el = listFiles(dir);
 					res.write(XmlUtil.toString(el));
 				}
 				else if (function.equals("listAnonymized")) {
 					//List the files in the anonymizer pipeline
-					DirectoryStorageService stage = plugin.getAnonymizerStorage();
+					DirectoryStorageService stage = tciaPlugin.getAnonymizerStorage();
 					File dir = stage.getRoot();
 					Element el = listFiles(dir);
 					res.write(XmlUtil.toString(el));
 				}
 				else if (function.equals("anonymize")) {
 					//Move files from the importStorage stage to the anonymizerInput stage.
-					DirectoryStorageService fromStage = plugin.getImportStorage();
-					DirectoryImportService toStage = plugin.getAnonymizerInput();
-					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""));
+					DirectoryStorageService fromStage = tciaPlugin.getImportStorage();
+					DirectoryImportService toStage = tciaPlugin.getAnonymizerInput();
+					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""), true);
 					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("export")) {
 					//Move files from the importStorage stage to the anonymizerInput stage.
-					DirectoryStorageService fromStage = plugin.getAnonymizerStorage();
-					DirectoryImportService toStage = plugin.getExportInput();
-					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""));
+					DirectoryStorageService fromStage = tciaPlugin.getAnonymizerStorage();
+					DirectoryImportService toStage = tciaPlugin.getExportInput();
+					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""), false);
 					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("getQuarantineURL")) {
 					//Return the URL of the DicomAnonymizer quarantine servlet
-					DicomAnonymizer da = plugin.getAnonymizer();
+					DicomAnonymizer da = tciaPlugin.getAnonymizer();
 					int pIndex = da.getPipeline().getPipelineIndex();
 					int sIndex = da.getStageIndex();
 					String qs = "?p="+pIndex+"&amp;s="+sIndex;
@@ -121,7 +126,7 @@ public class TCIAServlet extends Servlet {
 				}
 				else if (function.equals("getQuarantineSummary")) {
 					//Return a summary of the files in the DicomAnonymizer quarasntine
-					DicomAnonymizer da = plugin.getAnonymizer();
+					DicomAnonymizer da = tciaPlugin.getAnonymizer();
 					//TBD
 				}
 				else if (function.equals("getFileSystemRoots")) {
@@ -144,30 +149,46 @@ public class TCIAServlet extends Servlet {
 					res.write("<space partition=\""+name+"\" available=\""+free+"\" units=\"MB\"/>");
 				}
 				else if (function.equals("clearManifest")) {
-					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
+					ManifestLogPlugin manifestLog = tciaPlugin.getExportManifestLog();
 					manifestLog.clear();
 					res.write("<OK/>");
 				}
-				else if (function.equals("listManifest")) {
-					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
+				else if (function.equals("listLocalManifest")) {
 					if (path.length() > 2) {
 						if (path.element(2).equals("csv")) {
-							res.write(manifestLog.toCSV());
+							res.write(manifestPlugin.toCSV(true));
 							res.setContentType("csv");
 							res.setContentDisposition(new File("Manifest.csv"));
 						}
 						else {
-							try { res.write(XmlUtil.toPrettyString(manifestLog.toXML())); }
+							try { res.write(XmlUtil.toPrettyString(manifestPlugin.toXML(true))); }
 							catch (Exception ex) { res.write("<UNABLE/>"); }
 						}
 					}
 				}
+				else if (function.equals("listExportManifest")) {
+					if (path.length() > 2) {
+						if (path.element(2).equals("csv")) {
+							res.write(manifestPlugin.toCSV(false));
+							res.setContentType("csv");
+							res.setContentDisposition(new File("Manifest.csv"));
+						}
+						else {
+							try { res.write(XmlUtil.toPrettyString(manifestPlugin.toXML(false))); }
+							catch (Exception ex) { res.write("<UNABLE/>"); }
+						}
+					}
+				}
+				else if (function.equals("getManifestStatus")) {
+					Document doc = manifestPlugin.getManifestStatus();
+					if (doc != null) res.write(XmlUtil.toString(doc));
+					else res.setResponseCode(res.notfound);
+				}
 				else if (function.equals("exportManifest")) {
 					boolean ok = true;
-					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
-					File dir = plugin.getExportInput().getImportDirectory();
+					File dir = tciaPlugin.getExportInput().getImportDirectory();
 					try {
-						String manifest = manifestLog.toCSV();
+						String manifest = manifestPlugin.toCSV(false);
 						File file = File.createTempFile("MAN-", ".csv", dir);
 						ok = FileUtil.setText(file, manifest);
 					}
@@ -175,7 +196,7 @@ public class TCIAServlet extends Servlet {
 					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("getExportQueueSize")) {
-					HttpExportService httpExport = plugin.getExportOutput();
+					HttpExportService httpExport = tciaPlugin.getExportOutput();
 					int size = httpExport.getQueueManager().size();
 					res.write("<queue stage=\""+httpExport.getName()+"\" size=\""+size+"\"/>");
 				}
@@ -215,7 +236,7 @@ public class TCIAServlet extends Servlet {
 					try {
 						String pathseq = req.getParameter("file");
 						String[] paths = pathseq.split("\\|");
-						File destdir = plugin.getImportInput().getImportDirectory();
+						File destdir = tciaPlugin.getImportInput().getImportDirectory();
 						for (String p : paths) {
 							File file = new File(p);
 							if (file.exists()) ok &= submitFile(file, destdir);
@@ -263,11 +284,11 @@ public class TCIAServlet extends Servlet {
 					}
 				}
 				else if (function.equals("reset")) {
-					ManifestLogPlugin manifestLog = plugin.getExportManifestLog();
+					ManifestLogPlugin manifestLog = tciaPlugin.getExportManifestLog();
 					manifestLog.clear();
-					clearDirectory(plugin.getImportStorage().getRoot());
-					clearDirectory(plugin.getAnonymizerStorage().getRoot());
-					plugin.getAnonymizer().getQuarantine().deleteAll();
+					clearDirectory(tciaPlugin.getImportStorage().getRoot());
+					clearDirectory(tciaPlugin.getAnonymizerStorage().getRoot());
+					tciaPlugin.getAnonymizer().getQuarantine().deleteAll();
 					res.write("<OK/>");
 				}
 				else {
@@ -302,11 +323,11 @@ public class TCIAServlet extends Servlet {
 			return;
 		}
 
-		//Get the plugin.
+		//Get the tciaPlugin.
 		Configuration config = Configuration.getInstance();
 		Plugin p = config.getInstance().getRegisteredPlugin(context);
 		if ((p != null) && (p instanceof TCIAPlugin)) {
-			TCIAPlugin plugin = (TCIAPlugin)p;
+			TCIAPlugin tciaPlugin = (TCIAPlugin)p;
 
 			//Get the posted file
 			File dir = FileUtil.createTempDirectory(root);
@@ -315,7 +336,7 @@ public class TCIAServlet extends Servlet {
 				LinkedList<UploadedFile> files = req.getParts(dir, maxsize);
 				if (files.size() > 0) {
 					File spreadsheetFile = files.peekFirst().getFile();
-					DicomAnonymizer da = plugin.getAnonymizer();
+					DicomAnonymizer da = tciaPlugin.getAnonymizer();
 					File lutFile = da.getLookupTableFile();
 					if (updateLUT(lutFile, spreadsheetFile)) {
 						res.write("<OK/>");
@@ -387,24 +408,28 @@ public class TCIAServlet extends Servlet {
 	//If the path identifies a directory move the contents of the
 	//directory and all its subdirectories.
 	//Note that the destination is a flat directory (with no substructure).
-	private boolean moveFile(File fromDir, File toDir, String path) {
+	private boolean moveFile(File fromDir, File toDir, String path, boolean log) {
 		if (path.equals("")) return false;
 		File fromParent = (new File(fromDir.getAbsolutePath())).getParentFile();
 		File file = new File(fromParent, path);
 		if (!file.exists()) return false;
-		return moveFile(file, toDir);
+		return moveFile(file, toDir, true, log);
 	}
 	
-	private boolean moveFile(File file, File toDir) {
+	private boolean moveFile(File file, File toDir, boolean isRoot, boolean log) {
 		boolean ok = true;
 		if (file.isDirectory()) {
 			for (File f : file.listFiles()) {
-				ok &= moveFile(f, toDir);
+				ok &= moveFile(f, toDir, false, log);
+			}
+			if (!isRoot && (file.listFiles().length == 0)) {
+				file.delete();
 			}
 		}
 		else if (file.isFile()) {
 			FileObject fob = new FileObject(file);
 			ok = fob.moveToDirectory(toDir);
+			if (log) manifestPlugin.incrementQueuedInstance();
 		}
 		return ok;
 	}

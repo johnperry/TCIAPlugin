@@ -10,6 +10,7 @@ import org.rsna.ctp.pipeline.AbstractPipelineStage;
 import org.rsna.ctp.pipeline.PipelineStage;
 import org.rsna.ctp.pipeline.Processor;
 import org.rsna.ctp.plugin.Plugin;
+import org.rsna.ctp.stdstages.ObjectCache;
 import org.w3c.dom.Element;
 
 /**
@@ -21,6 +22,7 @@ public class ManifestLogger extends AbstractPipelineStage implements Processor {
 
 	String level;
 	String manifestLogID;
+	String cacheID;
 	ManifestLogPlugin manifestLogPlugin;
 
 	/**
@@ -31,6 +33,7 @@ public class ManifestLogger extends AbstractPipelineStage implements Processor {
 	public ManifestLogger(Element element) {
 		super(element);
 		manifestLogID = element.getAttribute("manifestLogID").trim();
+		cacheID = element.getAttribute("cacheID").trim();
 	}
 
 	/**
@@ -59,12 +62,17 @@ public class ManifestLogger extends AbstractPipelineStage implements Processor {
 		lastTimeIn = System.currentTimeMillis();
 
 		if ((manifestLogPlugin != null) && (fileObject instanceof DicomObject)) {
+			
+			//Get the cached object, if available
+			DicomObject cachedDOB = null;
+			ObjectCache cache = (ObjectCache)Configuration.getInstance().getRegisteredStage(cacheID);
+			if (cache != null) cachedDOB = (DicomObject)cache.getCachedObject();
 
 			//Make a DicomObject for the current object
 			DicomObject dob = (DicomObject)fileObject;
 
 			//Log it
-			manifestLogPlugin.log(dob);
+			manifestLogPlugin.log(dob, cachedDOB);
 		}
 
 		lastFileOut = new File(fileObject.getFile().getAbsolutePath());
