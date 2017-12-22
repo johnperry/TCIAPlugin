@@ -10,7 +10,10 @@ import org.apache.log4j.Logger;
 import org.rsna.ctp.Configuration;
 import org.rsna.ctp.objects.FileObject;
 import org.rsna.ctp.objects.DicomObject;
+import org.rsna.ctp.pipeline.AbstractImportService;
+import org.rsna.ctp.pipeline.Pipeline;
 import org.rsna.ctp.pipeline.PipelineStage;
+import org.rsna.ctp.pipeline.QueueManager;
 import org.rsna.ctp.plugin.Plugin;
 import org.rsna.ctp.stdstages.anonymizer.LookupTable;
 import org.rsna.ctp.stdstages.DicomAnonymizer;
@@ -184,6 +187,16 @@ public class TCIAServlet extends Servlet {
 					if (doc != null) res.write(XmlUtil.toString(doc));
 					else res.setResponseCode(res.notfound);
 				}
+				else if (function.equals("getImportStatus")) {
+					Pipeline pipe = tciaPlugin.getImportStorage().getPipeline();
+					int queueSize = 0;
+					for (PipelineStage stage : pipe.getStages()) {
+						if (stage instanceof AbstractImportService) {
+							queueSize += ((AbstractImportService)stage).getQueueManager().size();
+						}
+					}
+					res.write("<status queueSize=\""+queueSize+"\"/>");
+				}
 				else if (function.equals("exportManifest")) {
 					boolean ok = true;
 					File dir = tciaPlugin.getExportInput().getImportDirectory();
@@ -236,10 +249,12 @@ public class TCIAServlet extends Servlet {
 					try {
 						String pathseq = req.getParameter("file");
 						String[] paths = pathseq.split("\\|");
-						File destdir = tciaPlugin.getImportInput().getImportDirectory();
+						DirectoryImportService dis = tciaPlugin.getImportInput();
+						File destdir = dis.getImportDirectory();
+						QueueManager queue = dis.getQueueManager();
 						for (String p : paths) {
 							File file = new File(p);
-							if (file.exists()) ok &= submitFile(file, destdir);
+							if (file.exists()) ok &= submitFile(file, destdir, queue);
 							else ok = false;
 						}
 					}
@@ -439,13 +454,13 @@ public class TCIAServlet extends Servlet {
 	//If the supplied file is a directory copy the contents of the
 	//directory and all its subdirectories.
 	//Note that the destination is a flat directory (with no substructure).
-	private boolean submitFile(File file, File toDir) {
+	private boolean submitFile(File file, File toDir, QueueManager queue) {
 		boolean ok = true;
 		if (!file.exists()) return false;
 		if (file.isDirectory()) {
 			File[] files = file.listFiles();
 			for (File f : files) {
-				ok &= submitFile(f, toDir);
+				ok &= submitFile(f, toDir, queue);
 			}
 		}
 		else if (file.isFile()) {
@@ -453,8 +468,10 @@ public class TCIAServlet extends Servlet {
 				DicomObject dob = null;
 				try { dob = new DicomObject(file); }
 				catch (Exception ex) { return true; } //ignore non-DICOM files
-				File destFile = File.createTempFile("DCM-", ".dcm", toDir);
+				File destFile = File.createTempFile("DCM-", ".partial", toDir);
 				ok &= dob.copyTo(destFile);
+				queue.enqueue(destFile);
+				destFile.delete();
 			}
 			catch (Exception ex) { ok = false; }
 		}

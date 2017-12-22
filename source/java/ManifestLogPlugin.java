@@ -46,6 +46,8 @@ public class ManifestLogPlugin extends AbstractPlugin {
 		"NumFiles"
 	};
 	
+	static String eol = "\r\n";
+	
 	/**
 	 * IMPORTANT: When the constructor is called, neither the
 	 * pipelines nor the HttpServer have necessarily been
@@ -66,8 +68,9 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	 * @return HTML text displaying the current status of the plugin.
 	 */
 	public synchronized String getStatusHTML() {
-		String sizeLine = "<tr><td width=\"20%\">Number of series</td><td>"+manifest.size()+"</td></tr>";
-		return getStatusHTML(sizeLine);
+		String seriesLine = "<tr><td width=\"20%\">Number of series</td><td>"+manifest.size()+"</td></tr>";
+		String instanceLine = "<tr><td width=\"20%\">Number of instances</td><td>"+getManifestInstanceCount()+"</td></tr>";
+		return getStatusHTML(seriesLine + instanceLine);
 	}
 
 	/**
@@ -147,7 +150,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 		for (String name : columnNames) {
 			sb.append("\""+name+"\",");
 		}				
-		sb.append("\n");
+		sb.append(eol);
 		Entry[] eArray = new Entry[manifest.size()];
 		eArray = manifest.values().toArray(eArray);
 		Arrays.sort(eArray);
@@ -227,7 +230,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 			sb.append("=(\""+studyInstanceUID+"\"),");
 			sb.append("=(\""+seriesInstanceUID+"\"),");
 			sb.append("\""+numFiles+"\",");
-			sb.append("\n");
+			sb.append(eol);
 			if (includePHI && (phiPatientID != null)) {
 				sb.append(",,");
 				sb.append("=(\""+phiPatientID+"\"),");
@@ -237,8 +240,8 @@ public class ManifestLogPlugin extends AbstractPlugin {
 				sb.append(",,");
 				sb.append("=(\""+phiStudyInstanceUID+"\"),");
 				sb.append("=(\""+phiSeriesInstanceUID+"\"),");
-				sb.append("\n");
-				sb.append("\n"); //if 2 lines per series, separate the next series by a blank line
+				sb.append(eol);
+				sb.append(eol); //if 2 lines per series, separate the next series by a blank line
 			}
 			return sb.toString();
 		}
