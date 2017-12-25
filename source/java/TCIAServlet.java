@@ -163,9 +163,14 @@ public class TCIAServlet extends Servlet {
 							res.setContentType("csv");
 							res.setContentDisposition(new File("Manifest.csv"));
 						}
-						else {
+						else if (path.element(2).equals("xml")) {
 							try { res.write(XmlUtil.toPrettyString(manifestPlugin.toXML(true))); }
 							catch (Exception ex) { res.write("<UNABLE/>"); }
+						}
+						else if (path.element(2).equals("xlsx")) {
+							res.write(manifestPlugin.toXLSX(true));
+							res.setContentType("xlsx");
+							res.setContentDisposition(new File("Manifest.xlsx"));
 						}
 					}
 				}
@@ -176,9 +181,14 @@ public class TCIAServlet extends Servlet {
 							res.setContentType("csv");
 							res.setContentDisposition(new File("Manifest.csv"));
 						}
-						else {
+						else if (path.element(2).equals("xml")) {
 							try { res.write(XmlUtil.toPrettyString(manifestPlugin.toXML(false))); }
 							catch (Exception ex) { res.write("<UNABLE/>"); }
+						}
+						else if (path.element(2).equals("xlsx")) {
+							res.write(manifestPlugin.toXLSX(false));
+							res.setContentType("xlsx");
+							res.setContentDisposition(new File("Manifest.xlsx"));
 						}
 					}
 				}

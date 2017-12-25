@@ -18,6 +18,15 @@ import org.rsna.util.XmlUtil;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import java.io.ByteArrayOutputStream;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Font;
+
 /**
  * A Plugin to log entries in the export manifest.
  */
@@ -161,6 +170,37 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	}
 	
 	/**
+	 * Get the log as an XLSX file.
+	 */
+	public byte[] toXLSX(boolean includePHI) throws Exception {
+	    Workbook wb = new XSSFWorkbook();
+		Sheet sheet = wb.createSheet("TCIA");
+		Row row = sheet.createRow((short)0);
+		CellStyle style = wb.createCellStyle();
+		Font font = wb.createFont();
+		font.setBold(true);
+		style.setFont(font);
+		for (int i=0; i<columnNames.length; i++) {
+			Cell cell = row.createCell(i);
+			cell.setCellValue(columnNames[i]);
+			cell.setCellStyle(style);
+		}			
+		for (int i=0; i<12; i++) sheet.autoSizeColumn(i);
+		Entry[] eArray = new Entry[manifest.size()];
+		eArray = manifest.values().toArray(eArray);
+		Arrays.sort(eArray);
+		int nextRow = 2;
+		for (Entry e : eArray) {
+			nextRow = e.toXLSX(sheet, nextRow, includePHI);
+		}
+		for (int i=0; i<3; i++) sheet.autoSizeColumn(i);
+		for (int i=4; i<9; i++) sheet.autoSizeColumn(i);
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		wb.write(baos);
+		return baos.toByteArray();
+	}
+	
+	/**
 	 * Get the log as an XML Document.
 	 */
 	public Document toXML(boolean includePHI) throws Exception {
@@ -261,7 +301,31 @@ public class ManifestLogPlugin extends AbstractPlugin {
 			append(doc, series, "NumFiles", Integer.toString(numFiles));
 			return series;
 		}
-		private void append(Document doc, Element parent, String elementName, String value) {
+		public int toXLSX(Sheet sheet, int rowNumber, boolean includePHI) {
+			Row row = sheet.createRow((short)rowNumber);
+			row.createCell(0).setCellValue(collection);
+			row.createCell(1).setCellValue(siteName);
+			row.createCell(2).setCellValue(patientID);
+			row.createCell(3).setCellValue(sopClassUID);
+			row.createCell(4).setCellValue(modality);
+			row.createCell(5).setCellValue(studyDate);
+			row.createCell(6).setCellValue(seriesDate);
+			row.createCell(7).setCellValue(studyDescription);
+			row.createCell(8).setCellValue(seriesDescription);
+			row.createCell(9).setCellValue(studyInstanceUID);
+			row.createCell(10).setCellValue(seriesInstanceUID);
+			row.createCell(11).setCellValue(numFiles);
+			if (includePHI && (phiPatientID != null)) {
+				row = sheet.createRow((short)(rowNumber + 1));
+				row.createCell(2).setCellValue(phiPatientID);
+				row.createCell(5).setCellValue(phiStudyDate);
+				row.createCell(6).setCellValue(phiSeriesDate);
+				row.createCell(9).setCellValue(phiStudyInstanceUID);
+				row.createCell(10).setCellValue(phiSeriesInstanceUID);
+			}
+			return rowNumber + (includePHI ? 3 : 1);
+		}
+ 		private void append(Document doc, Element parent, String elementName, String value) {
 			Element e = doc.createElement(elementName);
 			e.setAttribute("value", value);
 			parent.appendChild(e);

@@ -12,6 +12,8 @@
 		<pathelement location="${libraries}/util.jar"/>
 		<pathelement location="${libraries}/CTP.jar"/>
 		<pathelement location="${libraries}/log4j.jar"/>
+		<pathelement location="${libraries}/poi/poi-3.17.jar"/>
+		<pathelement location="${libraries}/poi/poi-ooxml-3.17.jar"/>
 	</path>
 
 	<target name="clean">
