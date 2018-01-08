@@ -149,7 +149,12 @@ public class TCIAServlet extends Servlet {
 					String name = root.getAbsolutePath();
 					long oneMB = 1024 * 1024;
 					long free = root.getUsableSpace()/oneMB;
-					res.write("<space partition=\""+name+"\" available=\""+free+"\" units=\"MB\"/>");
+					String units = "MB";
+					if (free > 2000) {
+						free /= 1000;
+						units = "GB";
+					}
+					res.write("<space partition=\""+name+"\" available=\""+free+"\" units=\""+units+"\"/>");
 				}
 				else if (function.equals("clearManifest")) {
 					ManifestLogPlugin manifestLog = tciaPlugin.getExportManifestLog();
