@@ -73,6 +73,9 @@ public class TCIAServlet extends Servlet {
 
 		//Set the Content-Type for most functions
 		res.setContentType("xml");
+		
+		//Suppress caching
+		res.disableCaching();
 
 		//Get the plugins.
 		Plugin pl = Configuration.getInstance().getRegisteredPlugin(context);
