@@ -59,6 +59,8 @@
 		<jar jarfile="${products}/TCIAPlugin.jar">
 			<manifest>
 				<attribute name="Implementation-Version" value="${today} @ ${now}"/>
+	            <attribute name="Date" value="${today} at ${now}"/>
+	            <attribute name="Java-Version" value="${ant.java.version}"/>
 			</manifest>
 			<fileset dir="${build}" includes="**"/>
 		</jar>
