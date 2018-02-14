@@ -29,6 +29,7 @@ public class TCIAPlugin extends AbstractPlugin {
 	static final Logger logger = Logger.getLogger(TCIAPlugin.class);
 	
 	String importInputID;
+	String importManifestLogID;
 	String importStorageID;
 	String anonymizerInputID;
 	String anonymizerID;
@@ -44,6 +45,7 @@ public class TCIAPlugin extends AbstractPlugin {
 	DirectoryImportService exportInput;
 	HttpExportService exportOutput;
 	ManifestLogPlugin exportManifestLog;
+	ImportManifestLogPlugin importManifestLog;
 	
 	/**
 	 * IMPORTANT: When the constructor is called, neither the
@@ -57,12 +59,14 @@ public class TCIAPlugin extends AbstractPlugin {
 		super(element);
 		this.importInputID = element.getAttribute("importInputID").trim();
 		this.importStorageID = element.getAttribute("importStorageID").trim();
+		this.importManifestLogID = element.getAttribute("importManifestLogID").trim();
 		this.anonymizerInputID = element.getAttribute("anonymizerInputID").trim();
 		this.anonymizerID = element.getAttribute("anonymizerID").trim();
 		this.anonymizerStorageID = element.getAttribute("anonymizerStorageID").trim();
 		this.exportInputID = element.getAttribute("exportInputID").trim();
 		this.exportOutputID = element.getAttribute("exportOutputID").trim();
 		this.exportManifestLogID = element.getAttribute("exportManifestLogID").trim();
+		this.importManifestLogID = element.getAttribute("importManifestLogID").trim();
 		logger.info(id+" Plugin instantiated");
 	}
 
@@ -99,7 +103,8 @@ public class TCIAPlugin extends AbstractPlugin {
 		exportInput = getDISStage(exportInputID);
 		exportOutput = getHttpExportStage(exportOutputID);
 		
-		//Get the ManifestLog
+		//Get the ManifestLogs
+		importManifestLog = getImportManifestLogPlugin(importManifestLogID);
 		exportManifestLog = getManifestLogPlugin(exportManifestLogID);
 		
 		//Install the TCIAServlet
@@ -186,6 +191,21 @@ public class TCIAPlugin extends AbstractPlugin {
 		}		
 	}
 	
+	private ImportManifestLogPlugin getImportManifestLogPlugin(String id) {
+		Plugin plugin = Configuration.getInstance().getRegisteredPlugin(id);
+		if (plugin == null) {
+			logger.warn(name+": referenced plugin does not exist ("+id+")");
+			return null;
+		}
+		if (plugin instanceof ImportManifestLogPlugin) {
+			return (ImportManifestLogPlugin)plugin;
+		}
+		else {
+			logger.warn(name+": referenced plugin is not an ImportManifestLogPlugin ("+id+")");
+			return null;
+		}		
+	}
+	
 	/**
 	 * Get the DirectoryImportService receiving files in the import pipeline.
 	 */
@@ -240,6 +260,13 @@ public class TCIAPlugin extends AbstractPlugin {
 	 */
 	public ManifestLogPlugin getExportManifestLog() {
 		return exportManifestLog;
+	}
+	
+	/**
+	 * Get the ImportManifestLog.
+	 */
+	public ImportManifestLogPlugin getImportManifestLog() {
+		return importManifestLog;
 	}
 	
 }

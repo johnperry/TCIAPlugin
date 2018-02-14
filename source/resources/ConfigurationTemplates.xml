@@ -38,6 +38,7 @@
 			<attr name="class" required="yes" default="edu.uams.tcia.ManifestLogPlugin" editable="no"/>
 			<attr name="id" required="yes" default="CollectionManifestLog"/>
 			<attr name="root" required="yes" default="Collection/ManifestLog"/>
+			<attr name="tciaPluginID" required="yes" default="Collection"/>
 		</Plugin>
 
 		<Processor>
@@ -50,6 +51,23 @@
 			</attr>
 			<attr name="cacheID" required="yes" default="CollectionObjectCache">
 				<helptext>The ID of the ObjectCache in the Anonymization pipeline.</helptext>
+			</attr>
+		</Processor>
+
+		<Plugin>
+			<attr name="name" required="yes" default="CollectionImportManifestLog"/>
+			<attr name="class" required="yes" default="edu.uams.tcia.ImportManifestLogPlugin" editable="no"/>
+			<attr name="id" required="yes" default="CollectionImportManifestLog"/>
+			<attr name="root" required="yes" default="Collection/ImportManifestLog"/>
+		</Plugin>
+
+		<Processor>
+			<attr name="name" required="yes" default="ImportManifestLogger"/>
+			<attr name="class" required="yes" default="edu.uams.tcia.ImportManifestLogger" editable="no"/>
+			<attr name="root" required="yes" default="roots/CollectionImportManifestLogger"/>
+			<attr name="id" required="yes" default="CollectionImportManifestLogger"/>
+			<attr name="manifestLogID" required="yes" default="CollectionImportManifestLog">
+				<helptext>The ID of the ImportManifestLogPlugin.</helptext>
 			</attr>
 		</Processor>
 	</Components>

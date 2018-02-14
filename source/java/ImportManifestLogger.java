@@ -14,25 +14,23 @@ import org.rsna.ctp.stdstages.ObjectCache;
 import org.w3c.dom.Element;
 
 /**
- * A Processor stage that passes DicomObjects to a ManifestLogPlugin.
+ * A Processor stage that passes DicomObjects to an ImportManifestLogPlugin.
  */
-public class ManifestLogger extends AbstractPipelineStage implements Processor {
+public class ImportManifestLogger extends AbstractPipelineStage implements Processor {
 
-	static final Logger logger = Logger.getLogger(ManifestLogger.class);
+	static final Logger logger = Logger.getLogger(ImportManifestLogger.class);
 
 	String manifestLogID;
-	String cacheID;
-	ManifestLogPlugin manifestLogPlugin;
+	ImportManifestLogPlugin manifestLogPlugin;
 
 	/**
-	 * Construct the ManifestLogger PipelineStage.
+	 * Construct the ImportManifestLogger PipelineStage.
 	 * @param element the XML element from the configuration file
 	 * specifying the configuration of the stage.
 	 */
-	public ManifestLogger(Element element) {
+	public ImportManifestLogger(Element element) {
 		super(element);
 		manifestLogID = element.getAttribute("manifestLogID").trim();
-		cacheID = element.getAttribute("cacheID").trim();
 	}
 
 	/**
@@ -45,10 +43,10 @@ public class ManifestLogger extends AbstractPipelineStage implements Processor {
 	public void start() {
 		Configuration config = Configuration.getInstance();
 		Plugin plugin = config.getRegisteredPlugin(manifestLogID);
-		if ((plugin != null) && (plugin instanceof ManifestLogPlugin)) {
-			manifestLogPlugin = (ManifestLogPlugin)plugin;
+		if ((plugin != null) && (plugin instanceof ImportManifestLogPlugin)) {
+			manifestLogPlugin = (ImportManifestLogPlugin)plugin;
 		}
-		else logger.warn(name+": manifestLogID \""+manifestLogID+"\" does not reference a ManifestLogPlugin");
+		else logger.warn(name+": manifestLogID \""+manifestLogID+"\" does not reference an ImportManifestLogPlugin");
 	}
 
 	/**
@@ -62,16 +60,11 @@ public class ManifestLogger extends AbstractPipelineStage implements Processor {
 
 		if ((manifestLogPlugin != null) && (fileObject instanceof DicomObject)) {
 			
-			//Get the cached object, if available
-			DicomObject cachedDOB = null;
-			ObjectCache cache = (ObjectCache)Configuration.getInstance().getRegisteredStage(cacheID);
-			if (cache != null) cachedDOB = (DicomObject)cache.getCachedObject();
-
 			//Make a DicomObject for the current object
 			DicomObject dob = (DicomObject)fileObject;
 
 			//Log it
-			manifestLogPlugin.log(dob, cachedDOB);
+			manifestLogPlugin.log(dob);
 		}
 
 		lastFileOut = new File(fileObject.getFile().getAbsolutePath());

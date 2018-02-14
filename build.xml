@@ -71,6 +71,9 @@
 		<copy overwrite="true" todir="D:/JavaPrograms/CTP-UAMS/CTP/libraries">
 			<fileset dir="${products}"/>
 		</copy>		
+		<copy overwrite="true" todir="D:/JavaPrograms/CTP-TCIA/CTP/libraries">
+			<fileset dir="${products}"/>
+		</copy>		
 	</target>
 
 	<target name="all" depends="clean, jar, deploy"/>

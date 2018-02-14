@@ -3,6 +3,7 @@ package edu.uams.tcia;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Hashtable;
+import java.util.HashSet;
 import org.apache.log4j.Logger;
 import org.rsna.ctp.Configuration;
 import org.rsna.ctp.objects.DicomObject;
@@ -28,43 +29,38 @@ import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
 
 /**
- * A Plugin to log entries in the export manifest.
+ * A Plugin to log entries in the import manifest.
  */
-public class ManifestLogPlugin extends AbstractPlugin {
+public class ImportManifestLogPlugin extends AbstractPlugin {
 	
-	static final Logger logger = Logger.getLogger(ManifestLogPlugin.class);
+	static final Logger logger = Logger.getLogger(ImportManifestLogPlugin.class);
 	
 	Hashtable<String,Entry> manifest = null;
-	volatile int startingQuarantineCount = 0;
-	volatile int queuedInstanceCount = 0;
-	volatile int manifestInstanceCount = 0;
 	String tciaPluginID = "";
 	
-	String[] localColumnNames = {
+	String[] columnNames = {
 		"Collection",
 		"SiteName",
 		"PatientID",
-		"De-idPatientID",
 		"StudyDate",
-		"De-idStudyDate",
 		"SeriesInstanceUID",
-		"De-idSeriesInstanceUID",
 		"StudyDescription",
 		"SeriesDescription",
 		"Modality",
 		"NumFiles"
 	};
 	
-	String[] exportColumnNames = {
-		"Collection",
-		"SiteName",
-		"De-idPatientID",
-		"De-idStudyDate",
-		"De-idSeriesInstanceUID",
-		"StudyDescription",
-		"SeriesDescription",
-		"Modality",
-		"NumFiles"
+	String[] templateColumnNames1 = {
+		"",
+		"ptid",
+		"cname",
+		"ddate"
+	};
+	String[] templateColumnNames2 = {
+		"Local Patient ID",
+		"Anonymized Patient ID",
+		"Collection Name",
+		"Diagnosis Date (M/D/YYYY)"
 	};
 	
 	static String eol = "\r\n";
@@ -77,7 +73,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	 * @param element the XML element from the configuration file
 	 * specifying the configuration of the plugin.
 	 */
-	public ManifestLogPlugin(Element element) {
+	public ImportManifestLogPlugin(Element element) {
 		super(element);
 		tciaPluginID = element.getAttribute("tciaPluginID");
 		manifest = new Hashtable<String,Entry>(); 
@@ -97,13 +93,12 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Log a DicomObject.
 	 */
-	public synchronized void log(DicomObject dob, DicomObject cachedDOB) { 
+	public synchronized void log(DicomObject dob) { 
 		String uid = dob.getSeriesInstanceUID();
 		Entry entry = manifest.get(uid);
-		if (entry == null) entry = new Entry(dob, cachedDOB);
+		if (entry == null) entry = new Entry(dob);
 		entry.numFiles++;
 		manifest.put(uid, entry);
-		manifestInstanceCount++;
 	}
 	
 	/**
@@ -111,28 +106,6 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	 */
 	public synchronized void clear() {
 		manifest.clear();
-		manifestInstanceCount = 0;
-		queuedInstanceCount = 0;
-		startingQuarantineCount = getAnonymizerPipelineQuarantineCount();
-	}
-	
-	public int getAnonymizerPipelineQuarantineCount() {
-		if (tciaPluginID != null) {
-			Plugin plugin = Configuration.getInstance().getRegisteredPlugin(tciaPluginID);
-			if (plugin instanceof TCIAPlugin) {
-				TCIAPlugin tciaPlugin = (TCIAPlugin)plugin;
-				DicomAnonymizer da = tciaPlugin.getAnonymizer();
-				Pipeline pipe = da.getPipeline();
-				int n = 0;
-				for (PipelineStage stage : pipe.getStages()) {
-					Quarantine quarantine = stage.getQuarantine();
-					if (quarantine != null) n += quarantine.getSize();
-				}
-				return n;
-			}
-			else logger.warn("Unable to find TCIAPlugin with ID \""+tciaPluginID+"\"");
-		}
-		return 0;
 	}
 	
 	public int getManifestInstanceCount() {
@@ -144,32 +117,56 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	}
 	
 	/**
-	 * Count a queuedInstance.
+	 * Get the lookup table template XLSX file.
 	 */
-	public synchronized void incrementQueuedInstance() {
-		queuedInstanceCount++;
-	}
-	
-	/**
-	 * Get the manifest status object.
-	 */
-	public synchronized Document getManifestStatus() throws Exception {
-		Document doc = XmlUtil.getDocument();
-		Element root = doc.createElement("Status");
-		doc.appendChild(root);
-		root.setAttribute("startingQuarantineCount", Integer.toString(startingQuarantineCount));
-		root.setAttribute("currentQuarantineCount", Integer.toString(getAnonymizerPipelineQuarantineCount()));
-		root.setAttribute("currentManifestInstanceCount", Integer.toString(getManifestInstanceCount()));
-		root.setAttribute("queuedInstanceCount", Integer.toString(queuedInstanceCount));
-		return doc;		
+	public byte[] getLookupTableTemplate() throws Exception {
+	    Workbook wb = new XSSFWorkbook();
+		Sheet sheet = wb.createSheet("TCIA");
+		Row row = sheet.createRow((short)0);
+		for (int i=0; i<templateColumnNames1.length; i++) {
+			Cell cell = row.createCell(i);
+			cell.setCellValue(templateColumnNames1[i]);
+		}
+		
+		CellStyle style = wb.createCellStyle();
+		Font font = wb.createFont();
+		font.setBold(true);
+		style.setFont(font);
+		row = sheet.createRow((short)1);
+		for (int i=0; i<templateColumnNames2.length; i++) {
+			Cell cell = row.createCell(i);
+			cell.setCellValue(templateColumnNames2[i]);
+			cell.setCellStyle(style);
+		}
+		
+		HashSet<String> set = new HashSet<String>();
+		for (String key : manifest.keySet()) {
+			Entry entry = manifest.get(key);
+			set.add(entry.patientID);
+		}
+		String[] ptids = new String[set.size()];
+		ptids = set.toArray(ptids);
+		Arrays.sort(ptids);
+		
+		int rowNumber = 2;
+		for (String ptid : ptids) {
+			row = sheet.createRow((short)rowNumber);
+			Cell cell = row.createCell(0);
+			cell.setCellValue(ptid);
+			rowNumber++;
+		}
+		for (int i=0; i<4; i++) sheet.autoSizeColumn(i);
+		
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		wb.write(baos);
+		return baos.toByteArray();
 	}
 
 	/**
 	 * Get the log as a CSV string.
 	 */
-	public String toCSV(boolean includePHI) {
+	public String toCSV() {
 		StringBuffer sb = new StringBuffer();
-		String[] columnNames = (includePHI ? localColumnNames : exportColumnNames);
 		for (String name : columnNames) {
 			sb.append("\""+name+"\",");
 		}				
@@ -178,7 +175,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 		eArray = manifest.values().toArray(eArray);
 		Arrays.sort(eArray);
 		for (Entry e : eArray) {
-			sb.append(e.toCSV(includePHI));
+			sb.append(e.toCSV());
 		}
 		return sb.toString();
 	}
@@ -186,7 +183,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the log as an XLSX file.
 	 */
-	public byte[] toXLSX(boolean includePHI) throws Exception {
+	public byte[] toXLSX() throws Exception {
 	    Workbook wb = new XSSFWorkbook();
 		Sheet sheet = wb.createSheet("TCIA");
 		Row row = sheet.createRow((short)0);
@@ -194,7 +191,6 @@ public class ManifestLogPlugin extends AbstractPlugin {
 		Font font = wb.createFont();
 		font.setBold(true);
 		style.setFont(font);
-		String[] columnNames = (includePHI ? localColumnNames : exportColumnNames);
 		for (int i=0; i<columnNames.length; i++) {
 			Cell cell = row.createCell(i);
 			cell.setCellValue(columnNames[i]);
@@ -206,7 +202,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 		Arrays.sort(eArray);
 		int nextRow = 2;
 		for (Entry e : eArray) {
-			nextRow = e.toXLSX(sheet, nextRow, includePHI);
+			nextRow = e.toXLSX(sheet, nextRow);
 		}
 		for (int i=0; i<3; i++) sheet.autoSizeColumn(i);
 		for (int i=4; i<9; i++) sheet.autoSizeColumn(i);
@@ -218,7 +214,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the log as an XML Document.
 	 */
-	public Document toXML(boolean includePHI) throws Exception {
+	public Document toXML() throws Exception {
 		Document doc = XmlUtil.getDocument();
 		Element root = doc.createElement("Manifest");
 		doc.appendChild(root);
@@ -226,7 +222,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 		eArray = manifest.values().toArray(eArray);
 		Arrays.sort(eArray);
 		for (Entry e : eArray) {
-			root.appendChild(e.toXML(doc, includePHI));
+			root.appendChild(e.toXML(doc));
 		}
 		return doc;
 	}
@@ -242,11 +238,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 		public String modality;
 		public int numFiles = 0;
 		
-		public String phiPatientID = null;
-		public String phiStudyDate = null;
-		public String phiSeriesInstanceUID = null;
-		
-		public Entry(DicomObject dob, DicomObject cachedDOB) {
+		public Entry(DicomObject dob) {
 			collection = dob.getElementValue(0x00131010).trim();
 			siteName = dob.getElementValue(0x00131012).trim();
 			patientID = dob.getPatientID().trim();
@@ -255,21 +247,13 @@ public class ManifestLogPlugin extends AbstractPlugin {
 			studyDescription = dob.getStudyDescription().trim();
 			seriesDescription = dob.getSeriesDescription().trim();
 			seriesInstanceUID = dob.getSeriesInstanceUID().trim();
-			if (cachedDOB != null) {
-				phiPatientID = cachedDOB.getPatientID().trim();
-				phiStudyDate = cachedDOB.getStudyDate().trim();
-				phiSeriesInstanceUID = cachedDOB.getSeriesInstanceUID().trim();
-			}
 		}
-		public String toCSV(boolean includePHI) {
+		public String toCSV() {
 			StringBuffer sb = new StringBuffer();
 			sb.append("=(\""+collection+"\"),");
 			sb.append("=(\""+siteName+"\"),");
-			if (includePHI) sb.append("=(\""+phiPatientID+"\"),");
 			sb.append("=(\""+patientID+"\"),");
-			if (includePHI) sb.append("=(\""+phiStudyDate+"\"),");
 			sb.append("=(\""+studyDate+"\"),");
-			if (includePHI) sb.append("=(\""+phiSeriesInstanceUID+"\"),");
 			sb.append("=(\""+seriesInstanceUID+"\"),");
 			sb.append("=(\""+studyDescription+"\"),");
 			sb.append("=(\""+seriesDescription+"\"),");
@@ -278,29 +262,26 @@ public class ManifestLogPlugin extends AbstractPlugin {
 			sb.append(eol);
 			return sb.toString();
 		}
-		public Element toXML(Document doc, boolean includePHI) {
+		public Element toXML(Document doc) {
 			Element series = doc.createElement("Series");
 			append(doc, series, "Collection", collection);
 			append(doc, series, "SiteName", siteName);
-			append(doc, series, "PatientID", patientID, phiPatientID, includePHI);
-			append(doc, series, "StudyDate", studyDate, phiStudyDate, includePHI);
-			append(doc, series, "SeriesInstanceUID", seriesInstanceUID, phiSeriesInstanceUID, includePHI);
+			append(doc, series, "PatientID", patientID);
+			append(doc, series, "StudyDate", studyDate);
+			append(doc, series, "SeriesInstanceUID", seriesInstanceUID);
 			append(doc, series, "StudyDescription", studyDescription);
 			append(doc, series, "SeriesDescription", seriesDescription);
 			append(doc, series, "Modality", modality);
 			append(doc, series, "NumFiles", Integer.toString(numFiles));
 			return series;
 		}
-		public int toXLSX(Sheet sheet, int rowNumber, boolean includePHI) {
+		public int toXLSX(Sheet sheet, int rowNumber) {
 			Row row = sheet.createRow((short)rowNumber);
 			int cell = 0;
 			row.createCell(cell++).setCellValue(collection);
 			row.createCell(cell++).setCellValue(siteName);
-			if (includePHI) row.createCell(cell++).setCellValue(phiPatientID);
 			row.createCell(cell++).setCellValue(patientID);
-			if (includePHI) row.createCell(cell++).setCellValue(phiStudyDate);
 			row.createCell(cell++).setCellValue(studyDate);
-			if (includePHI) row.createCell(cell++).setCellValue(phiSeriesInstanceUID);
 			row.createCell(cell++).setCellValue(seriesInstanceUID);
 			row.createCell(cell++).setCellValue(studyDescription);
 			row.createCell(cell++).setCellValue(seriesDescription);
@@ -311,12 +292,6 @@ public class ManifestLogPlugin extends AbstractPlugin {
  		private void append(Document doc, Element parent, String elementName, String value) {
 			Element e = doc.createElement(elementName);
 			e.setAttribute("value", value);
-			parent.appendChild(e);
-		}
-		private void append(Document doc, Element parent, String elementName, String value, String phi, boolean includePHI) {
-			Element e = doc.createElement(elementName);
-			e.setAttribute("value", value);
-			if (includePHI) e.setAttribute("phi", phi);
 			parent.appendChild(e);
 		}
 		public int compareTo(Entry e) {

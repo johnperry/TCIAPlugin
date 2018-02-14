@@ -40,6 +40,7 @@ public class TCIAServlet extends Servlet {
 	
 	TCIAPlugin tciaPlugin = null;
 	ManifestLogPlugin manifestPlugin = null;
+	ImportManifestLogPlugin importManifestPlugin = null;
 
 	/**
 	 * Construct a TCIAServlet. Note: the TCIAServlet
@@ -82,6 +83,7 @@ public class TCIAServlet extends Servlet {
 		if ((pl != null) && (pl instanceof TCIAPlugin)) {
 			tciaPlugin = (TCIAPlugin)pl;
 			manifestPlugin = tciaPlugin.getExportManifestLog();
+			importManifestPlugin = tciaPlugin.getImportManifestLog();
 
 			Path path = req.getParsedPath();
 			
@@ -164,12 +166,30 @@ public class TCIAServlet extends Servlet {
 					manifestLog.clear();
 					res.write("<OK/>");
 				}
+				else if (function.equals("listImportManifest")) {
+					if (path.length() > 2) {
+						if (path.element(2).equals("csv")) {
+							res.write(importManifestPlugin.toCSV());
+							res.setContentType("csv");
+							res.setContentDisposition(new File("ImportManifest.csv"));
+						}
+						else if (path.element(2).equals("xml")) {
+							try { res.write(XmlUtil.toPrettyString(importManifestPlugin.toXML())); }
+							catch (Exception ex) { res.write("<UNABLE/>"); }
+						}
+						else if (path.element(2).equals("xlsx")) {
+							res.write(importManifestPlugin.toXLSX());
+							res.setContentType("xlsx");
+							res.setContentDisposition(new File("ImportManifest.xlsx"));
+						}
+					}
+				}
 				else if (function.equals("listLocalManifest")) {
 					if (path.length() > 2) {
 						if (path.element(2).equals("csv")) {
 							res.write(manifestPlugin.toCSV(true));
 							res.setContentType("csv");
-							res.setContentDisposition(new File("Manifest.csv"));
+							res.setContentDisposition(new File("LocalManifest.csv"));
 						}
 						else if (path.element(2).equals("xml")) {
 							try { res.write(XmlUtil.toPrettyString(manifestPlugin.toXML(true))); }
@@ -178,16 +198,21 @@ public class TCIAServlet extends Servlet {
 						else if (path.element(2).equals("xlsx")) {
 							res.write(manifestPlugin.toXLSX(true));
 							res.setContentType("xlsx");
-							res.setContentDisposition(new File("Manifest.xlsx"));
+							res.setContentDisposition(new File("LocalManifest.xlsx"));
 						}
 					}
+				}
+				else if (function.equals("listLookupTableTemplate")) {
+					res.write(importManifestPlugin.getLookupTableTemplate());
+					res.setContentType("xlsx");
+					res.setContentDisposition(new File("LookupTableTemplate.xlsx"));
 				}
 				else if (function.equals("listExportManifest")) {
 					if (path.length() > 2) {
 						if (path.element(2).equals("csv")) {
 							res.write(manifestPlugin.toCSV(false));
 							res.setContentType("csv");
-							res.setContentDisposition(new File("Manifest.csv"));
+							res.setContentDisposition(new File("ExportManifest.csv"));
 						}
 						else if (path.element(2).equals("xml")) {
 							try { res.write(XmlUtil.toPrettyString(manifestPlugin.toXML(false))); }
@@ -196,7 +221,7 @@ public class TCIAServlet extends Servlet {
 						else if (path.element(2).equals("xlsx")) {
 							res.write(manifestPlugin.toXLSX(false));
 							res.setContentType("xlsx");
-							res.setContentDisposition(new File("Manifest.xlsx"));
+							res.setContentDisposition(new File("ExportManifest.xlsx"));
 						}
 					}
 				}
@@ -319,6 +344,8 @@ public class TCIAServlet extends Servlet {
 				else if (function.equals("reset")) {
 					ManifestLogPlugin manifestLog = tciaPlugin.getExportManifestLog();
 					manifestLog.clear();
+					ImportManifestLogPlugin importManifestLog = tciaPlugin.getImportManifestLog();
+					importManifestLog.clear();
 					clearDirectory(tciaPlugin.getImportStorage().getRoot());
 					clearDirectory(tciaPlugin.getAnonymizerStorage().getRoot());
 					tciaPlugin.getAnonymizer().getQuarantine().deleteAll();
@@ -409,10 +436,12 @@ public class TCIAServlet extends Servlet {
 					String replacement = sheet.getCell(colID + row);
 					if (replacement != null) {
 						String key = type + "/" + phi;
+						/*
 						String current = props.getProperty(key);
 						if (current != null) {
 							ok &= current.equals(replacement);
 						}
+						*/
 						props.setProperty(key, replacement);
 					}
 				}
@@ -502,7 +531,8 @@ public class TCIAServlet extends Servlet {
 			Document doc = XmlUtil.getDocument();
 			Element root = doc.createElement("DicomFiles");
 			doc.appendChild(root);
-			listFiles(root, dir, true);
+			int count = listFiles(root, dir, true);
+			root.setAttribute("count", Integer.toString(count));
 			return root;
 		}
 		catch (Exception ex) {
@@ -511,8 +541,9 @@ public class TCIAServlet extends Servlet {
 		}
 	}
 	
-	private void listFiles(Element parent, File file, boolean showParent) {
+	private int listFiles(Element parent, File file, boolean showParent) {
 		Document doc = parent.getOwnerDocument();
+		int count = 0;
 		if (file.isDirectory()) {
 			Element dirEl = doc.createElement("dir");
 			dirEl.setAttribute("name", file.getName());
@@ -522,8 +553,9 @@ public class TCIAServlet extends Servlet {
 			}
 			parent.appendChild(dirEl);
 			for (File f : file.listFiles()) {
-				listFiles(dirEl, f, false);
+				count += listFiles(dirEl, f, false);
 			}
+			dirEl.setAttribute("count", Integer.toString(count));
 		}
 		else if (file.isFile()) {
 			try {
@@ -532,9 +564,11 @@ public class TCIAServlet extends Servlet {
 				fileEl.setAttribute("name", file.getName());
 				setAttributes(fileEl, dob);
 				parent.appendChild(fileEl);
+				count++;
 			}
 			catch (Exception skip) { logger.warn("oops", skip); }
 		}
+		return count;
 	}
 	
 	private void setAttributes(Element el, DicomObject dob) {
