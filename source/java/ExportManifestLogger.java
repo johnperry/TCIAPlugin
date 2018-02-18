@@ -14,22 +14,22 @@ import org.rsna.ctp.stdstages.ObjectCache;
 import org.w3c.dom.Element;
 
 /**
- * A Processor stage that passes DicomObjects to a ManifestLogPlugin.
+ * A Processor stage that passes DicomObjects to an ExportManifestLogPlugin.
  */
-public class ManifestLogger extends AbstractPipelineStage implements Processor {
+public class ExportManifestLogger extends AbstractPipelineStage implements Processor {
 
-	static final Logger logger = Logger.getLogger(ManifestLogger.class);
+	static final Logger logger = Logger.getLogger(ExportManifestLogger.class);
 
 	String manifestLogID;
 	String cacheID;
-	ManifestLogPlugin manifestLogPlugin;
+	ExportManifestLogPlugin manifestLogPlugin;
 
 	/**
 	 * Construct the ManifestLogger PipelineStage.
 	 * @param element the XML element from the configuration file
 	 * specifying the configuration of the stage.
 	 */
-	public ManifestLogger(Element element) {
+	public ExportManifestLogger(Element element) {
 		super(element);
 		manifestLogID = element.getAttribute("manifestLogID").trim();
 		cacheID = element.getAttribute("cacheID").trim();
@@ -45,10 +45,10 @@ public class ManifestLogger extends AbstractPipelineStage implements Processor {
 	public void start() {
 		Configuration config = Configuration.getInstance();
 		Plugin plugin = config.getRegisteredPlugin(manifestLogID);
-		if ((plugin != null) && (plugin instanceof ManifestLogPlugin)) {
-			manifestLogPlugin = (ManifestLogPlugin)plugin;
+		if ((plugin != null) && (plugin instanceof ExportManifestLogPlugin)) {
+			manifestLogPlugin = (ExportManifestLogPlugin)plugin;
 		}
-		else logger.warn(name+": manifestLogID \""+manifestLogID+"\" does not reference a ManifestLogPlugin");
+		else logger.warn(name+": manifestLogID \""+manifestLogID+"\" does not reference an ExportManifestLogPlugin");
 	}
 
 	/**

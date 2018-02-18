@@ -44,7 +44,7 @@ public class TCIAPlugin extends AbstractPlugin {
 	DirectoryStorageService anonymizerStorage;
 	DirectoryImportService exportInput;
 	HttpExportService exportOutput;
-	ManifestLogPlugin exportManifestLog;
+	ExportManifestLogPlugin exportManifestLog;
 	ImportManifestLogPlugin importManifestLog;
 	
 	/**
@@ -105,7 +105,7 @@ public class TCIAPlugin extends AbstractPlugin {
 		
 		//Get the ManifestLogs
 		importManifestLog = getImportManifestLogPlugin(importManifestLogID);
-		exportManifestLog = getManifestLogPlugin(exportManifestLogID);
+		exportManifestLog = getExportManifestLogPlugin(exportManifestLogID);
 		
 		//Install the TCIAServlet
 		Configuration config = Configuration.getInstance();
@@ -176,17 +176,17 @@ public class TCIAPlugin extends AbstractPlugin {
 		}		
 	}
 	
-	private ManifestLogPlugin getManifestLogPlugin(String id) {
+	private ExportManifestLogPlugin getExportManifestLogPlugin(String id) {
 		Plugin plugin = Configuration.getInstance().getRegisteredPlugin(id);
 		if (plugin == null) {
 			logger.warn(name+": referenced plugin does not exist ("+id+")");
 			return null;
 		}
-		if (plugin instanceof ManifestLogPlugin) {
-			return (ManifestLogPlugin)plugin;
+		if (plugin instanceof ExportManifestLogPlugin) {
+			return (ExportManifestLogPlugin)plugin;
 		}
 		else {
-			logger.warn(name+": referenced plugin is not a ManifestLogPlugin ("+id+")");
+			logger.warn(name+": referenced plugin is not an ExportManifestLogPlugin ("+id+")");
 			return null;
 		}		
 	}
@@ -256,9 +256,9 @@ public class TCIAPlugin extends AbstractPlugin {
 	}
 	
 	/**
-	 * Get the ManifestLog.
+	 * Get the ExportManifestLog.
 	 */
-	public ManifestLogPlugin getExportManifestLog() {
+	public ExportManifestLogPlugin getExportManifestLog() {
 		return exportManifestLog;
 	}
 	

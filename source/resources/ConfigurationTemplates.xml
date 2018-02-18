@@ -28,26 +28,29 @@
 			<attr name="exportOutputID" required="yes">
 				<helptext>The ID of the HttpExportService stage in the export pipeline.</helptext>
 			</attr>
+			<attr name="importManifestLogID" required="yes">
+				<helptext>The ID of the ImportManifestLogger plugin.</helptext>
+			</attr>
 			<attr name="exportManifestLogID" required="yes">
-				<helptext>The ID of the ManifestLogger plugin.</helptext>
+				<helptext>The ID of the ExportManifestLogger plugin.</helptext>
 			</attr>
 		</Plugin>
 
 		<Plugin>
-			<attr name="name" required="yes" default="CollectionManifestLog"/>
-			<attr name="class" required="yes" default="edu.uams.tcia.ManifestLogPlugin" editable="no"/>
+			<attr name="name" required="yes" default="CollectionExportManifestLog"/>
+			<attr name="class" required="yes" default="edu.uams.tcia.ExportManifestLogPlugin" editable="no"/>
 			<attr name="id" required="yes" default="CollectionManifestLog"/>
 			<attr name="root" required="yes" default="Collection/ManifestLog"/>
 			<attr name="tciaPluginID" required="yes" default="Collection"/>
 		</Plugin>
 
 		<Processor>
-			<attr name="name" required="yes" default="ManifestLogger"/>
-			<attr name="class" required="yes" default="edu.uams.tcia.ManifestLogger" editable="no"/>
-			<attr name="root" required="yes" default="roots/CollectionManifestLogger"/>
+			<attr name="name" required="yes" default="ExportManifestLogger"/>
+			<attr name="class" required="yes" default="edu.uams.tcia.ExportManifestLogger" editable="no"/>
+			<attr name="root" required="yes" default="roots/CollectionExportManifestLogger"/>
 			<attr name="id" required="yes" default="CollectionManifestLogger"/>
-			<attr name="manifestLogID" required="yes" default="CollectionManifestLog">
-				<helptext>The ID of the ManifestLogPlugin.</helptext>
+			<attr name="manifestLogID" required="yes" default="CollectionExportManifestLog">
+				<helptext>The ID of the ExportManifestLogPlugin.</helptext>
 			</attr>
 			<attr name="cacheID" required="yes" default="CollectionObjectCache">
 				<helptext>The ID of the ObjectCache in the Anonymization pipeline.</helptext>

@@ -3,10 +3,13 @@ package edu.uams.tcia;
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Date;
 import java.util.LinkedList;
+import java.util.GregorianCalendar;
 import java.util.Properties;
 import javax.swing.filechooser.FileSystemView;
 import org.apache.log4j.Logger;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.rsna.ctp.Configuration;
 import org.rsna.ctp.objects.FileObject;
 import org.rsna.ctp.objects.DicomObject;
@@ -39,7 +42,7 @@ public class TCIAServlet extends Servlet {
 	static final Logger logger = Logger.getLogger(TCIAServlet.class);
 	
 	TCIAPlugin tciaPlugin = null;
-	ManifestLogPlugin manifestPlugin = null;
+	ExportManifestLogPlugin exportManifestPlugin = null;
 	ImportManifestLogPlugin importManifestPlugin = null;
 
 	/**
@@ -82,7 +85,7 @@ public class TCIAServlet extends Servlet {
 		Plugin pl = Configuration.getInstance().getRegisteredPlugin(context);
 		if ((pl != null) && (pl instanceof TCIAPlugin)) {
 			tciaPlugin = (TCIAPlugin)pl;
-			manifestPlugin = tciaPlugin.getExportManifestLog();
+			exportManifestPlugin = tciaPlugin.getExportManifestLog();
 			importManifestPlugin = tciaPlugin.getImportManifestLog();
 
 			Path path = req.getParsedPath();
@@ -162,7 +165,7 @@ public class TCIAServlet extends Servlet {
 					res.write("<space partition=\""+name+"\" available=\""+free+"\" units=\""+units+"\"/>");
 				}
 				else if (function.equals("clearManifest")) {
-					ManifestLogPlugin manifestLog = tciaPlugin.getExportManifestLog();
+					ExportManifestLogPlugin manifestLog = tciaPlugin.getExportManifestLog();
 					manifestLog.clear();
 					res.write("<OK/>");
 				}
@@ -187,16 +190,16 @@ public class TCIAServlet extends Servlet {
 				else if (function.equals("listLocalManifest")) {
 					if (path.length() > 2) {
 						if (path.element(2).equals("csv")) {
-							res.write(manifestPlugin.toCSV(true));
+							res.write(exportManifestPlugin.toCSV(true));
 							res.setContentType("csv");
 							res.setContentDisposition(new File("LocalManifest.csv"));
 						}
 						else if (path.element(2).equals("xml")) {
-							try { res.write(XmlUtil.toPrettyString(manifestPlugin.toXML(true))); }
+							try { res.write(XmlUtil.toPrettyString(exportManifestPlugin.toXML(true))); }
 							catch (Exception ex) { res.write("<UNABLE/>"); }
 						}
 						else if (path.element(2).equals("xlsx")) {
-							res.write(manifestPlugin.toXLSX(true));
+							res.write(exportManifestPlugin.toXLSX(true));
 							res.setContentType("xlsx");
 							res.setContentDisposition(new File("LocalManifest.xlsx"));
 						}
@@ -210,23 +213,23 @@ public class TCIAServlet extends Servlet {
 				else if (function.equals("listExportManifest")) {
 					if (path.length() > 2) {
 						if (path.element(2).equals("csv")) {
-							res.write(manifestPlugin.toCSV(false));
+							res.write(exportManifestPlugin.toCSV(false));
 							res.setContentType("csv");
 							res.setContentDisposition(new File("ExportManifest.csv"));
 						}
 						else if (path.element(2).equals("xml")) {
-							try { res.write(XmlUtil.toPrettyString(manifestPlugin.toXML(false))); }
+							try { res.write(XmlUtil.toPrettyString(exportManifestPlugin.toXML(false))); }
 							catch (Exception ex) { res.write("<UNABLE/>"); }
 						}
 						else if (path.element(2).equals("xlsx")) {
-							res.write(manifestPlugin.toXLSX(false));
+							res.write(exportManifestPlugin.toXLSX(false));
 							res.setContentType("xlsx");
 							res.setContentDisposition(new File("ExportManifest.xlsx"));
 						}
 					}
 				}
 				else if (function.equals("getManifestStatus")) {
-					Document doc = manifestPlugin.getManifestStatus();
+					Document doc = exportManifestPlugin.getManifestStatus();
 					if (doc != null) res.write(XmlUtil.toString(doc));
 					else res.setResponseCode(res.notfound);
 				}
@@ -244,7 +247,7 @@ public class TCIAServlet extends Servlet {
 					boolean ok = true;
 					File dir = tciaPlugin.getExportInput().getImportDirectory();
 					try {
-						String manifest = manifestPlugin.toCSV(false);
+						String manifest = exportManifestPlugin.toCSV(false);
 						File file = File.createTempFile("MAN-", ".csv", dir);
 						ok = FileUtil.setText(file, manifest);
 					}
@@ -342,8 +345,8 @@ public class TCIAServlet extends Servlet {
 					}
 				}
 				else if (function.equals("reset")) {
-					ManifestLogPlugin manifestLog = tciaPlugin.getExportManifestLog();
-					manifestLog.clear();
+					ExportManifestLogPlugin exportManifestLog = tciaPlugin.getExportManifestLog();
+					exportManifestLog.clear();
 					ImportManifestLogPlugin importManifestLog = tciaPlugin.getImportManifestLog();
 					importManifestLog.clear();
 					clearDirectory(tciaPlugin.getImportStorage().getRoot());
@@ -435,13 +438,22 @@ public class TCIAServlet extends Servlet {
 					String type = sheet.getCell(colID + "1");
 					String replacement = sheet.getCell(colID + row);
 					if (replacement != null) {
-						String key = type + "/" + phi;
-						/*
-						String current = props.getProperty(key);
-						if (current != null) {
-							ok &= current.equals(replacement);
+						if (type.contains("date")) {
+							//See if the replacement is an Excel
+							//numeric date, and if so, convert it to text.
+							try {
+								double d = Double.parseDouble(replacement);
+								Date date = DateUtil.getJavaDate(d);
+								GregorianCalendar gc = new GregorianCalendar();
+								gc.setTime(date);
+								int year = gc.get(gc.YEAR);
+								int month = gc.get(gc.MONTH) + 1;
+								int day = gc.get(gc.DAY_OF_MONTH);
+								replacement = String.format("%d/%d/%4d", month, day, year);
+							}
+							catch (Exception notNumericDate) { }
 						}
-						*/
+						String key = type + "/" + phi;
 						props.setProperty(key, replacement);
 					}
 				}
@@ -491,7 +503,7 @@ public class TCIAServlet extends Servlet {
 		else if (file.isFile()) {
 			FileObject fob = new FileObject(file);
 			ok = fob.moveToDirectory(toDir);
-			if (log) manifestPlugin.incrementQueuedInstance();
+			if (log) exportManifestPlugin.incrementQueuedInstance();
 		}
 		return ok;
 	}

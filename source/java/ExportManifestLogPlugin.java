@@ -30,9 +30,9 @@ import org.apache.poi.ss.usermodel.Font;
 /**
  * A Plugin to log entries in the export manifest.
  */
-public class ManifestLogPlugin extends AbstractPlugin {
+public class ExportManifestLogPlugin extends AbstractPlugin {
 	
-	static final Logger logger = Logger.getLogger(ManifestLogPlugin.class);
+	static final Logger logger = Logger.getLogger(ExportManifestLogPlugin.class);
 	
 	Hashtable<String,Entry> manifest = null;
 	volatile int startingQuarantineCount = 0;
@@ -77,7 +77,7 @@ public class ManifestLogPlugin extends AbstractPlugin {
 	 * @param element the XML element from the configuration file
 	 * specifying the configuration of the plugin.
 	 */
-	public ManifestLogPlugin(Element element) {
+	public ExportManifestLogPlugin(Element element) {
 		super(element);
 		tciaPluginID = element.getAttribute("tciaPluginID");
 		manifest = new Hashtable<String,Entry>(); 
