@@ -39,8 +39,6 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 	String tciaPluginID = "";
 	
 	String[] columnNames = {
-		"Collection",
-		"SiteName",
 		"PatientID",
 		"StudyDate",
 		"SeriesInstanceUID",
@@ -54,12 +52,14 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 		"",
 		"ptid",
 		"cname",
+		"sname",
 		"ddate"
 	};
 	String[] templateColumnNames2 = {
 		"Local Patient ID",
 		"Anonymized Patient ID",
 		"Collection Name",
+		"Site Name",
 		"Diagnosis Date (M/D/YYYY)"
 	};
 	
@@ -155,7 +155,7 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 			cell.setCellValue(ptid);
 			rowNumber++;
 		}
-		for (int i=0; i<4; i++) sheet.autoSizeColumn(i);
+		for (int i=0; i<templateColumnNames2.length; i++) sheet.autoSizeColumn(i);
 		
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		wb.write(baos);
@@ -228,8 +228,6 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 	}
 	
 	class Entry implements Comparable<Entry> {
-		public String collection;
-		public String siteName;
 		public String patientID;
 		public String studyDate;
 		public String studyDescription;
@@ -239,8 +237,6 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 		public int numFiles = 0;
 		
 		public Entry(DicomObject dob) {
-			collection = dob.getElementValue(0x00131010).trim();
-			siteName = dob.getElementValue(0x00131012).trim();
 			patientID = dob.getPatientID().trim();
 			modality = dob.getModality().trim();
 			studyDate = dob.getStudyDate().trim();
@@ -250,8 +246,6 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 		}
 		public String toCSV() {
 			StringBuffer sb = new StringBuffer();
-			sb.append("=(\""+collection+"\"),");
-			sb.append("=(\""+siteName+"\"),");
 			sb.append("=(\""+patientID+"\"),");
 			sb.append("=(\""+studyDate+"\"),");
 			sb.append("=(\""+seriesInstanceUID+"\"),");
@@ -264,8 +258,6 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 		}
 		public Element toXML(Document doc) {
 			Element series = doc.createElement("Series");
-			append(doc, series, "Collection", collection);
-			append(doc, series, "SiteName", siteName);
 			append(doc, series, "PatientID", patientID);
 			append(doc, series, "StudyDate", studyDate);
 			append(doc, series, "SeriesInstanceUID", seriesInstanceUID);
@@ -278,8 +270,6 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 		public int toXLSX(Sheet sheet, int rowNumber) {
 			Row row = sheet.createRow((short)rowNumber);
 			int cell = 0;
-			row.createCell(cell++).setCellValue(collection);
-			row.createCell(cell++).setCellValue(siteName);
 			row.createCell(cell++).setCellValue(patientID);
 			row.createCell(cell++).setCellValue(studyDate);
 			row.createCell(cell++).setCellValue(seriesInstanceUID);
