@@ -119,7 +119,7 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the lookup table template XLSX file.
 	 */
-	public byte[] getLookupTableTemplate() throws Exception {
+	public byte[] getLookupTableTemplate(String idParam) throws Exception {
 	    Workbook wb = new XSSFWorkbook();
 		Sheet sheet = wb.createSheet("TCIA");
 		Row row = sheet.createRow((short)0);
@@ -140,9 +140,16 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 		}
 		
 		HashSet<String> set = new HashSet<String>();
-		for (String key : manifest.keySet()) {
-			Entry entry = manifest.get(key);
-			set.add(entry.patientID);
+		if ((idParam == null) || idParam.trim().equals(""))
+			for (String key : manifest.keySet()) {
+				Entry entry = manifest.get(key);
+				set.add(entry.patientID);
+			}
+		else {
+			String[] ids = idParam.split("\\|");
+			for (String id : ids) {
+				set.add(id.trim());
+			}
 		}
 		String[] ptids = new String[set.size()];
 		ptids = set.toArray(ptids);

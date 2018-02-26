@@ -206,7 +206,7 @@ public class TCIAServlet extends Servlet {
 					}
 				}
 				else if (function.equals("listLookupTableTemplate")) {
-					res.write(importManifestPlugin.getLookupTableTemplate());
+					res.write(importManifestPlugin.getLookupTableTemplate(req.getParameter("id")));
 					res.setContentType("xlsx");
 					res.setContentDisposition(new File("LookupTableTemplate.xlsx"));
 				}
