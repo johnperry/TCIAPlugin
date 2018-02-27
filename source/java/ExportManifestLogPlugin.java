@@ -116,7 +116,7 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 		startingQuarantineCount = getAnonymizerPipelineQuarantineCount();
 	}
 	
-	public int getAnonymizerPipelineQuarantineCount() {
+	public synchronized int getAnonymizerPipelineQuarantineCount() {
 		if (tciaPluginID != null) {
 			Plugin plugin = Configuration.getInstance().getRegisteredPlugin(tciaPluginID);
 			if (plugin instanceof TCIAPlugin) {
@@ -135,7 +135,7 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 		return 0;
 	}
 	
-	public int getManifestInstanceCount() {
+	public synchronized int getManifestInstanceCount() {
 		int n = 0;
 		for (Entry entry : manifest.values()) {
 			n += entry.numFiles;
@@ -167,7 +167,7 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the log as a CSV string.
 	 */
-	public String toCSV(boolean includePHI) {
+	public synchronized String toCSV(boolean includePHI) {
 		StringBuffer sb = new StringBuffer();
 		String[] columnNames = (includePHI ? localColumnNames : exportColumnNames);
 		for (String name : columnNames) {
@@ -186,7 +186,7 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the log as an XLSX file.
 	 */
-	public byte[] toXLSX(boolean includePHI) throws Exception {
+	public synchronized byte[] toXLSX(boolean includePHI) throws Exception {
 	    Workbook wb = new XSSFWorkbook();
 		Sheet sheet = wb.createSheet("TCIA");
 		Row row = sheet.createRow((short)0);
@@ -218,7 +218,7 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the log as an XML Document.
 	 */
-	public Document toXML(boolean includePHI) throws Exception {
+	public synchronized Document toXML(boolean includePHI) throws Exception {
 		Document doc = XmlUtil.getDocument();
 		Element root = doc.createElement("Manifest");
 		doc.appendChild(root);

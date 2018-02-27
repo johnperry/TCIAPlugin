@@ -108,7 +108,7 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 		manifest.clear();
 	}
 	
-	public int getManifestInstanceCount() {
+	public synchronized int getManifestInstanceCount() {
 		int n = 0;
 		for (Entry entry : manifest.values()) {
 			n += entry.numFiles;
@@ -119,7 +119,7 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the lookup table template XLSX file.
 	 */
-	public byte[] getLookupTableTemplate(String idParam) throws Exception {
+	public synchronized byte[] getLookupTableTemplate(String idParam) throws Exception {
 	    Workbook wb = new XSSFWorkbook();
 		Sheet sheet = wb.createSheet("TCIA");
 		Row row = sheet.createRow((short)0);
@@ -172,7 +172,7 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the log as a CSV string.
 	 */
-	public String toCSV() {
+	public synchronized String toCSV() {
 		StringBuffer sb = new StringBuffer();
 		for (String name : columnNames) {
 			sb.append("\""+name+"\",");
@@ -190,7 +190,7 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the log as an XLSX file.
 	 */
-	public byte[] toXLSX() throws Exception {
+	public synchronized byte[] toXLSX() throws Exception {
 	    Workbook wb = new XSSFWorkbook();
 		Sheet sheet = wb.createSheet("TCIA");
 		Row row = sheet.createRow((short)0);
@@ -221,7 +221,7 @@ public class ImportManifestLogPlugin extends AbstractPlugin {
 	/**
 	 * Get the log as an XML Document.
 	 */
-	public Document toXML() throws Exception {
+	public synchronized Document toXML() throws Exception {
 		Document doc = XmlUtil.getDocument();
 		Element root = doc.createElement("Manifest");
 		doc.appendChild(root);

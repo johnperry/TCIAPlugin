@@ -243,6 +243,10 @@ public class TCIAServlet extends Servlet {
 					}
 					res.write("<status queueSize=\""+queueSize+"\"/>");
 				}
+				else if (function.equals("getImportManifestInstanceCount")) {
+					int count = importManifestPlugin.getManifestInstanceCount();
+					res.write("<status instanceCount=\""+count+"\"/>");
+				}
 				else if (function.equals("exportManifest")) {
 					boolean ok = true;
 					File dir = tciaPlugin.getExportInput().getImportDirectory();
@@ -266,7 +270,9 @@ public class TCIAServlet extends Servlet {
 						File[] files = dir.listFiles();
 						Document doc = XmlUtil.getDocument();
 						Element root = doc.createElement("dir");
-						root.setAttribute("name", dir.getName());
+						String name = dir.getName();
+						if (name.equals("")) name = dir.getAbsolutePath();
+						root.setAttribute("name", name);
 						root.setAttribute(
 							"parent", 
 							((parent == null) ? "" : parent.getAbsolutePath())
@@ -568,6 +574,11 @@ public class TCIAServlet extends Servlet {
 				count += listFiles(dirEl, f, false);
 			}
 			dirEl.setAttribute("count", Integer.toString(count));
+			Element ch = (Element)dirEl.getFirstChild();
+			if (ch != null) {
+				String ptid = ch.getAttribute("PatientID");
+				dirEl.setAttribute("PatientID", ptid);
+			}
 		}
 		else if (file.isFile()) {
 			try {
