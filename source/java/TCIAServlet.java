@@ -316,10 +316,10 @@ public class TCIAServlet extends Servlet {
 					String units = "MB";
 					res.write("<space partition=\""+name+"\" required=\""+size+"\" available=\""+free+"\" units=\""+units+"\"/>");
 				}
-				else if (function.equals("submitFile")) {
+				else if (function.equals("submitFile") || function.equals("submitFiles")) {
 					boolean ok = true;
 					try {
-						String pathseq = req.getParameter("file");
+						String pathseq = req.getParameter("file", req.getParameter("files"));
 						String[] paths = pathseq.split("\\|");
 						DirectoryImportService dis = tciaPlugin.getImportInput();
 						File destdir = dis.getImportDirectory();
