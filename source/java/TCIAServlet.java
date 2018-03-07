@@ -164,10 +164,14 @@ public class TCIAServlet extends Servlet {
 					}
 					res.write("<space partition=\""+name+"\" available=\""+free+"\" units=\""+units+"\"/>");
 				}
-				else if (function.equals("clearManifest")) {
-					ExportManifestLogPlugin manifestLog = tciaPlugin.getExportManifestLog();
-					manifestLog.clear();
+				else if (function.equals("clearExportManifest")) {
+					exportManifestPlugin.clear();
 					res.write("<OK/>");
+				}
+				else if (function.equals("initializeAnonymizerPipelineCounts")) {
+					Document doc = exportManifestPlugin.initializeAnonymizerPipelineCounts();
+					if (doc != null) res.write(XmlUtil.toString(doc));
+					else res.setResponseCode(res.notfound);
 				}
 				else if (function.equals("listImportManifest")) {
 					if (path.length() > 2) {
@@ -228,7 +232,7 @@ public class TCIAServlet extends Servlet {
 						}
 					}
 				}
-				else if (function.equals("getManifestStatus")) {
+				else if (function.equals("getExportManifestStatus")) {
 					Document doc = exportManifestPlugin.getManifestStatus();
 					if (doc != null) res.write(XmlUtil.toString(doc));
 					else res.setResponseCode(res.notfound);
@@ -295,6 +299,22 @@ public class TCIAServlet extends Servlet {
 						res.write(XmlUtil.toPrettyString(root));
 					}
 					catch (Exception ex) { res.write("<dir/>"); }
+				}
+				else if (function.equals("getSpaceRequired")) {
+					long size = 0;
+					String pathseq = req.getParameter("file");
+					String[] paths = pathseq.split("\\|");
+					for (String p : paths) {
+						File file = new File(p);
+						if (file.exists()) size += getSize(file);
+					}
+					File root = new File("/");
+					String name = root.getAbsolutePath();
+					long oneMB = 1024 * 1024;
+					long free = root.getUsableSpace()/oneMB;
+					size /= oneMB;
+					String units = "MB";
+					res.write("<space partition=\""+name+"\" required=\""+size+"\" available=\""+free+"\" units=\""+units+"\"/>");
 				}
 				else if (function.equals("submitFile")) {
 					boolean ok = true;
@@ -592,6 +612,22 @@ public class TCIAServlet extends Servlet {
 			catch (Exception skip) { logger.warn("oops", skip); }
 		}
 		return count;
+	}
+	
+	private long getSize(File file) {
+		long size = 0;
+		if (file.exists()) {
+			if (file.isFile()) {
+				return file.length();
+			}
+			else {
+				for (File f : file.listFiles()) {
+					size += getSize(f);
+				}
+				return size;
+			}
+		}
+		else return 0;
 	}
 	
 	private void setAttributes(Element el, DicomObject dob) {

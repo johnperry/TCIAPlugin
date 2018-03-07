@@ -111,9 +111,16 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	 */
 	public synchronized void clear() {
 		manifest.clear();
-		manifestInstanceCount = 0;
+	}
+	
+	/**
+	 * Initialize the Anonymizer Pipeline counts.
+	 */
+	public synchronized Document initializeAnonymizerPipelineCounts() throws Exception {
+		manifestInstanceCount = getManifestInstanceCount();
 		queuedInstanceCount = 0;
 		startingQuarantineCount = getAnonymizerPipelineQuarantineCount();
+		return getManifestStatus();
 	}
 	
 	public synchronized int getAnonymizerPipelineQuarantineCount() {
