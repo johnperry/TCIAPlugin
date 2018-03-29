@@ -151,7 +151,7 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	}
 	
 	/**
-	 * Count a queuedInstance.
+	 * Count a queued instance.
 	 */
 	public synchronized void incrementQueuedInstance() {
 		queuedInstanceCount++;

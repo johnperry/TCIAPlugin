@@ -301,20 +301,26 @@ public class TCIAServlet extends Servlet {
 					catch (Exception ex) { res.write("<dir/>"); }
 				}
 				else if (function.equals("getSpaceRequired")) {
-					long size = 0;
-					String pathseq = req.getParameter("file");
+					FileInfo info = new FileInfo();
+					String pathseq = req.getParameter("file", req.getParameter("files"));
 					String[] paths = pathseq.split("\\|");
 					for (String p : paths) {
 						File file = new File(p);
-						if (file.exists()) size += getSize(file);
+						if (file.exists()) info.add(getInfo(file));
 					}
 					File root = new File("/");
 					String name = root.getAbsolutePath();
 					long oneMB = 1024 * 1024;
 					long free = root.getUsableSpace()/oneMB;
-					size /= oneMB;
+					long total = root.getTotalSpace() / oneMB;
+					long size = info.size / oneMB;
+					int n = info.n;
 					String units = "MB";
-					res.write("<space partition=\""+name+"\" required=\""+size+"\" available=\""+free+"\" units=\""+units+"\"/>");
+					
+					res.write(
+							"<space partition=\""+name+"\" files=\""+n+"\"" +
+							" required=\""+size+"\" available=\""+free+"\"" +
+							" total=\""+total+"\" units=\""+units+"\"/>");
 				}
 				else if (function.equals("submitFile") || function.equals("submitFiles")) {
 					boolean ok = true;
@@ -370,6 +376,25 @@ public class TCIAServlet extends Servlet {
 						}
 					}
 				}
+				else if (function.equals("pause")) {
+					PipelineStage anonymizer = tciaPlugin.getAnonymizer();
+					Pipeline pipe = anonymizer.getPipeline();
+					pipe.setPaused(true);
+					res.write( "<OK/>" );
+				}
+				else if (function.equals("restart")) {
+					DicomAnonymizer anonymizer = tciaPlugin.getAnonymizer();
+					Pipeline pipe = anonymizer.getPipeline();
+					if (pipe.isPaused()) {
+						if ((path.length() > 2) && path.element(2).equals("requeue")) {
+							DirectoryImportService dis = tciaPlugin.getAnonymizerInput();
+							anonymizer.getQuarantine().queueAll(dis.getQueueManager());
+						}
+						pipe.setPaused(false);
+						res.write( "<OK/>" );
+					}
+					else res.write( "<NOTOK/>" );
+				}
 				else if (function.equals("reset")) {
 					ExportManifestLogPlugin exportManifestLog = tciaPlugin.getExportManifestLog();
 					exportManifestLog.clear();
@@ -378,7 +403,27 @@ public class TCIAServlet extends Servlet {
 					clearDirectory(tciaPlugin.getImportStorage().getRoot());
 					clearDirectory(tciaPlugin.getAnonymizerStorage().getRoot());
 					tciaPlugin.getAnonymizer().getQuarantine().deleteAll();
+					exportManifestLog.initializeAnonymizerPipelineCounts();
 					res.write("<OK/>");
+				}
+				else if (function.equals("dashboard")) {
+					ExportManifestLogPlugin exportManifestLog = tciaPlugin.getExportManifestLog();
+					Document doc = XmlUtil.getDocument();
+					Element root = doc.createElement("Dashboard");
+					doc.appendChild(root);
+					
+					Element impsts = doc.createElement("ImportStatus");
+					impsts.setAttribute("storedFiles", 
+										Integer.toString(FileUtil.getFileCount(tciaPlugin.getImportStorage().getRoot())));
+					root.appendChild(impsts);
+					
+					Element ansts = (Element)doc.importNode(exportManifestLog.getManifestStatus().getDocumentElement(), true);
+					doc.renameNode(ansts, ansts.getNamespaceURI(), "AnonymizerStatus");
+					root.appendChild(ansts);
+					ansts.setAttribute("storedFiles", 
+										Integer.toString(FileUtil.getFileCount(tciaPlugin.getAnonymizerStorage().getRoot())));					
+					
+					res.write(XmlUtil.toPrettyString(root));
 				}
 				else {
 					//Unknown function
@@ -541,24 +586,25 @@ public class TCIAServlet extends Servlet {
 	//Note that the destination is a flat directory (with no substructure).
 	private boolean submitFile(File file, File toDir, QueueManager queue) {
 		boolean ok = true;
-		if (!file.exists()) return false;
-		if (file.isDirectory()) {
-			File[] files = file.listFiles();
-			for (File f : files) {
-				ok &= submitFile(f, toDir, queue);
+		if (file.exists()) {
+			if (file.isDirectory()) {
+				File[] files = file.listFiles();
+				for (File f : files) {
+					ok &= submitFile(f, toDir, queue);
+				}
 			}
-		}
-		else if (file.isFile()) {
-			try {
-				DicomObject dob = null;
-				try { dob = new DicomObject(file); }
-				catch (Exception ex) { return true; } //ignore non-DICOM files
-				File destFile = File.createTempFile("DCM-", ".partial", toDir);
-				ok &= dob.copyTo(destFile);
-				queue.enqueue(destFile);
-				destFile.delete();
+			else if (file.isFile()) {
+				try {
+					DicomObject dob = null;
+					try { dob = new DicomObject(file); }
+					catch (Exception ex) { return true; } //ignore non-DICOM files
+					File destFile = File.createTempFile("DCM-", ".partial", toDir);
+					ok &= dob.copyTo(destFile);
+					queue.enqueue(destFile);
+					destFile.delete();
+				}
+				catch (Exception ex) { ok = false; }
 			}
-			catch (Exception ex) { ok = false; }
 		}
 		return ok;			
 	}
@@ -614,20 +660,39 @@ public class TCIAServlet extends Servlet {
 		return count;
 	}
 	
-	private long getSize(File file) {
-		long size = 0;
-		if (file.exists()) {
+	private FileInfo getInfo(File file) {
+		FileInfo info = new FileInfo();
+		if ((file != null) && file.exists()) {
 			if (file.isFile()) {
-				return file.length();
+				info.add(file.length());
 			}
 			else {
-				for (File f : file.listFiles()) {
-					size += getSize(f);
+				File[] files = file.listFiles();
+				for (File f : files) {
+					try { info.add(getInfo(f)); }
+					catch (Exception ex) {
+						logger.warn("Unable to getInfo for "+f);
+					}
 				}
-				return size;
 			}
 		}
-		else return 0;
+		return info;
+	}
+	
+	class FileInfo {
+		public int n = 0;
+		public long size = 0;
+		public FileInfo() { }
+		public FileInfo add(long size) {
+			this.n++;
+			this.size += size;
+			return this;
+		}
+		public FileInfo add(FileInfo info) {
+			this.n += info.n;
+			this.size += info.size;
+			return this;
+		}
 	}
 	
 	private void setAttributes(Element el, DicomObject dob) {
