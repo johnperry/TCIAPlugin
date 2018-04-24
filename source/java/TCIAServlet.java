@@ -269,6 +269,7 @@ public class TCIAServlet extends Servlet {
 				}
 				else if (function.equals("listFiles")) {
 					try {
+						boolean dcmOnly = req.hasParameter("dcm");
 						File dir = new File(req.getParameter("dir","/")).getAbsoluteFile();
 						File parent = dir.getParentFile();
 						File[] files = dir.listFiles();
@@ -291,9 +292,11 @@ public class TCIAServlet extends Servlet {
 						}
 						for (File file : files) {
 							if (file.isFile()) {
-								Element e = doc.createElement("file");
-								e.setAttribute("name", file.getName());
-								root.appendChild(e);
+								if (!dcmOnly || isDICOM(file)) {
+									Element e = doc.createElement("file");
+									e.setAttribute("name", file.getName());
+									root.appendChild(e);
+								}
 							}
 						}
 						res.write(XmlUtil.toPrettyString(root));
@@ -490,6 +493,15 @@ public class TCIAServlet extends Servlet {
 		res.setContentType("xml");
 		res.disableCaching();
 		res.send();
+	}
+	
+	private boolean isDICOM(File file) {
+		try {
+			DicomObject dob = new DicomObject(file);
+			return true;
+		}
+		catch (Exception ex) { }
+		return false;
 	}
 	
 	private boolean updateLUT(File lutFile, File spreadsheetFile) {
