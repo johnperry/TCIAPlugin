@@ -120,10 +120,10 @@ public class TCIAServlet extends Servlet {
 					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("export")) {
-					//Move files from the importStorage stage to the anonymizerInput stage.
+					//Move files from the AnonymizerStorage stage to the ExportInput stage.
 					DirectoryStorageService fromStage = tciaPlugin.getAnonymizerStorage();
 					DirectoryImportService toStage = tciaPlugin.getExportInput();
-					boolean ok = moveFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""), false);
+					boolean ok = exportFile(fromStage.getRoot(), toStage.getImportDirectory(), req.getParameter("file",""));
 					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("getQuarantineURL")) {
@@ -208,6 +208,12 @@ public class TCIAServlet extends Servlet {
 							res.setContentDisposition(new File("LocalManifest.xlsx"));
 						}
 					}
+				}
+				else if (function.equals("listHistory")) {
+					boolean includePHI = (path.length() > 2) && path.element(2).equals("phi");
+					res.write(exportManifestPlugin.toHistoryXLSX(includePHI));
+					res.setContentType("xlsx");
+					res.setContentDisposition(new File("History"+(includePHI?"(PHI)":"")+".xlsx"));
 				}
 				else if (function.equals("listLookupTableTemplate")) {
 					res.write(importManifestPlugin.getLookupTableTemplate(req.getParameter("id")));
@@ -409,6 +415,11 @@ public class TCIAServlet extends Servlet {
 					exportManifestLog.initializeAnonymizerPipelineCounts();
 					res.write("<OK/>");
 				}
+				else if (function.equals("resetHistory")) {
+					ExportManifestLogPlugin exportManifestLog = tciaPlugin.getExportManifestLog();
+					exportManifestLog.clearHistory();
+					res.write("<OK/>");
+				}
 				else if (function.equals("dashboard")) {
 					ExportManifestLogPlugin exportManifestLog = tciaPlugin.getExportManifestLog();
 					Document doc = XmlUtil.getDocument();
@@ -560,7 +571,7 @@ public class TCIAServlet extends Servlet {
 		return ok;
 	}
 	
-	//Move files from a storage directory to an import directory.
+	//Move files from a storage directory to an import directory for an anonymizer pipeline.
 	//If the path identifies a file, move the file.
 	//If the path identifies a directory move the contents of the
 	//directory and all its subdirectories.
@@ -587,6 +598,39 @@ public class TCIAServlet extends Servlet {
 			FileObject fob = new FileObject(file);
 			ok = fob.moveToDirectory(toDir);
 			if (log) exportManifestPlugin.incrementQueuedInstance();
+		}
+		return ok;
+	}
+
+	//Move files from a storage directory to an import directory for an export pipeline.
+	//If the path identifies a file, move the file.
+	//If the path identifies a directory move the contents of the
+	//directory and all its subdirectories.
+	//Note that the destination is a flat directory (with no substructure).
+	private boolean exportFile(File fromDir, File toDir, String path) {
+		if (path.equals("")) return false;
+		File fromParent = (new File(fromDir.getAbsolutePath())).getParentFile();
+		File file = new File(fromParent, path);
+		if (!file.exists()) return false;
+		return exportFile(file, toDir, true);
+	}
+	
+	private boolean exportFile(File file, File toDir, boolean isRoot) {
+		boolean ok = true;
+		if (file.isDirectory()) {
+			for (File f : file.listFiles()) {
+				ok &= exportFile(f, toDir, false);
+			}
+			if (!isRoot && (file.listFiles().length == 0)) {
+				file.delete();
+			}
+		}
+		else if (file.isFile()) {
+			FileObject fob = FileObject.getInstance(file);
+			ok = fob.moveToDirectory(toDir);
+			if (fob instanceof DicomObject) {
+				exportManifestPlugin.logExportedObject( (DicomObject)fob );
+			}
 		}
 		return ok;
 	}

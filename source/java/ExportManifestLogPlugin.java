@@ -1,8 +1,17 @@
 package edu.uams.tcia;
 
 import java.io.File;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Hashtable;
+import java.util.LinkedList;
+
+import jdbm.RecordManager;
+import jdbm.helper.FastIterator;
+import jdbm.helper.Tuple;
+import jdbm.helper.TupleBrowser;
+import jdbm.htree.HTree;
+
 import org.apache.log4j.Logger;
 import org.rsna.ctp.Configuration;
 import org.rsna.ctp.objects.DicomObject;
@@ -14,6 +23,7 @@ import org.rsna.ctp.plugin.Plugin;
 import org.rsna.ctp.stdstages.DicomAnonymizer;
 import org.rsna.util.FileUtil;
 import org.rsna.util.StringUtil;
+import org.rsna.util.JdbmUtil;
 import org.rsna.util.XmlUtil;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -34,11 +44,15 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	
 	static final Logger logger = Logger.getLogger(ExportManifestLogPlugin.class);
 	
-	Hashtable<String,Entry> manifest = null;
+	Hashtable<String,ExportManifestEntry> manifest = null;
 	volatile int startingQuarantineCount = 0;
 	volatile int queuedInstanceCount = 0;
 	volatile int manifestInstanceCount = 0;
 	String tciaPluginID = "";
+	
+	RecordManager recman = null;
+	String historyDBName = "__historyDB";
+	public HTree seriesIndex = null;	//SeriesInstanceUID
 	
 	String[] localColumnNames = {
 		"Collection",
@@ -67,6 +81,37 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 		"NumFiles"
 	};
 	
+	String[] historyPHIColumnNames = {
+		"Collection",
+		"SiteName",
+		"PatientID",
+		"De-idPatientID",
+		"StudyDate",
+		"De-idStudyDate",
+		"SeriesInstanceUID",
+		"De-idSeriesInstanceUID",
+		"StudyDescription",
+		"SeriesDescription",
+		"Modality",
+		"NumFiles",
+		"FirstExport",
+		"LastExport"
+	};
+	
+	String[] historyColumnNames = {
+		"Collection",
+		"SiteName",
+		"De-idPatientID",
+		"De-idStudyDate",
+		"De-idSeriesInstanceUID",
+		"StudyDescription",
+		"SeriesDescription",
+		"Modality",
+		"NumFiles",
+		"FirstExport",
+		"LastExport"
+	};
+	
 	static String eol = "\r\n";
 	
 	/**
@@ -79,11 +124,51 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	 */
 	public ExportManifestLogPlugin(Element element) {
 		super(element);
+		getIndex();
 		tciaPluginID = element.getAttribute("tciaPluginID");
-		manifest = new Hashtable<String,Entry>(); 
+		manifest = new Hashtable<String,ExportManifestEntry>(); 
 		logger.info(id+" Plugin instantiated");
 	}
 
+	//Load the index HTree
+	private void getIndex() {
+		try {
+			File indexFile = new File(root, historyDBName);
+			recman			= JdbmUtil.getRecordManager( indexFile.getPath() );
+			seriesIndex		= JdbmUtil.getHTree(recman, "seriesUIDIndex");
+		}
+		catch (Exception ex) {
+			recman = null;
+			logger.warn("Unable to load the persistent index.");
+		}
+	}
+	
+	public void shutdown() {
+		close();
+		super.shutdown();
+	}
+	
+	private void close() {
+		if (recman != null) {
+			try {
+				recman.commit();
+				recman.close();
+			}
+			catch (Exception ex) {
+				logger.debug("Unable to commit and close the database");
+			}
+		}
+	}
+	
+	public void clearHistory() {
+		close();
+		File db = new File(root, historyDBName+".db");
+		File lg = new File(root, historyDBName+".lg");
+		db.delete();
+		lg.delete();
+		getIndex();
+	}
+	
 	/**
 	 * Get HTML text displaying the current status of the plugin.
 	 * @return HTML text displaying the current status of the plugin.
@@ -99,11 +184,65 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	 */
 	public synchronized void log(DicomObject dob, DicomObject cachedDOB) { 
 		String uid = dob.getSeriesInstanceUID();
-		Entry entry = manifest.get(uid);
-		if (entry == null) entry = new Entry(dob, cachedDOB);
+		ExportManifestEntry entry = manifest.get(uid);
+		if (entry == null) entry = new ExportManifestEntry(dob, cachedDOB);
 		entry.numFiles++;
 		manifest.put(uid, entry);
 		manifestInstanceCount++;
+		//logger.info("Added series "+uid+" to the export manifest");
+	}
+	
+	/**
+	 * Log an exported DicomObject in the persistent index.
+	 * This is only done when files are actually sent to the export pipeline;
+	 * that's why this is a separate method from the log method, which is 
+	 * called immediately after anonymization.
+	 */
+	public synchronized void logExportedObject(DicomObject dob) { 
+		String sopiuid = dob.getSOPInstanceUID();
+		String seriesuid = dob.getSeriesInstanceUID();
+		try {
+			//Get the entry from the persistent index, if possible
+			ExportManifestEntry entry = (ExportManifestEntry)seriesIndex.get(seriesuid);
+			//If there is no entry in the persistent index,
+			//this must be the first object exported from this
+			//series. If so, create a new entry from the one in
+			//the manifest.
+			if (entry == null) {
+				entry = manifest.get(seriesuid);
+				if (entry != null) {
+					//Clone it so we don't modify the object in the manifest
+					entry = new ExportManifestEntry(entry);
+					//Initialize the count and set the date
+					entry.numFiles = 0;
+					entry.firstExport = System.currentTimeMillis();
+				}
+				else {
+					//We are exporting an object that doesn't have
+					//an entry in the manifest. This should never happen.
+					//Since we don't have the PHI version of the original
+					//object, we can't make a complete entry, so we're
+					//just going to log the problem.
+					logger.warn("Unable to log "+sopiuid+" in the persistent index.");
+					logger.warn("...SeriesInstanceUID: "+seriesuid);
+					logger.warn("...manifest.size:     "+manifest.size());
+					for (String s :  manifest.keySet()) {
+						logger.info("...manifest key: "+s);
+					}
+					return;
+				}
+			}
+			//We now have an entry to put into the persistent index.
+			//Update the count and the last export date.
+			entry.numFiles++;
+			entry.lastExport = System.currentTimeMillis();
+			//Now store it in the persistent index
+			seriesIndex.put(seriesuid, entry);
+			return;
+		}
+		catch (Exception unable) { 
+			logger.warn("Unable to log "+sopiuid+" in the persistent index.",unable);
+		}
 	}
 	
 	/**
@@ -144,7 +283,7 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 	
 	public synchronized int getManifestInstanceCount() {
 		int n = 0;
-		for (Entry entry : manifest.values()) {
+		for (ExportManifestEntry entry : manifest.values()) {
 			n += entry.numFiles;
 		}
 		return n;
@@ -181,10 +320,10 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 			sb.append("\""+name+"\",");
 		}				
 		sb.append(eol);
-		Entry[] eArray = new Entry[manifest.size()];
+		ExportManifestEntry[] eArray = new ExportManifestEntry[manifest.size()];
 		eArray = manifest.values().toArray(eArray);
 		Arrays.sort(eArray);
-		for (Entry e : eArray) {
+		for (ExportManifestEntry e : eArray) {
 			sb.append(e.toCSV(includePHI));
 		}
 		return sb.toString();
@@ -208,12 +347,12 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 			cell.setCellStyle(style);
 		}			
 		for (int i=0; i<12; i++) sheet.autoSizeColumn(i);
-		Entry[] eArray = new Entry[manifest.size()];
+		ExportManifestEntry[] eArray = new ExportManifestEntry[manifest.size()];
 		eArray = manifest.values().toArray(eArray);
 		Arrays.sort(eArray);
 		int nextRow = 2;
-		for (Entry e : eArray) {
-			nextRow = e.toXLSX(sheet, nextRow, includePHI);
+		for (ExportManifestEntry e : eArray) {
+			nextRow = e.toXLSX(sheet, nextRow, includePHI, false); //false = do not include dates
 		}
 		for (int i=0; i<3; i++) sheet.autoSizeColumn(i);
 		for (int i=4; i<9; i++) sheet.autoSizeColumn(i);
@@ -229,109 +368,52 @@ public class ExportManifestLogPlugin extends AbstractPlugin {
 		Document doc = XmlUtil.getDocument();
 		Element root = doc.createElement("Manifest");
 		doc.appendChild(root);
-		Entry[] eArray = new Entry[manifest.size()];
+		ExportManifestEntry[] eArray = new ExportManifestEntry[manifest.size()];
 		eArray = manifest.values().toArray(eArray);
 		Arrays.sort(eArray);
-		for (Entry e : eArray) {
+		for (ExportManifestEntry e : eArray) {
 			root.appendChild(e.toXML(doc, includePHI));
 		}
 		return doc;
 	}
 	
-	class Entry implements Comparable<Entry> {
-		public String collection;
-		public String siteName;
-		public String patientID;
-		public String studyDate;
-		public String studyDescription;
-		public String seriesDescription;
-		public String seriesInstanceUID;
-		public String modality;
-		public int numFiles = 0;
-		
-		public String phiPatientID = null;
-		public String phiStudyDate = null;
-		public String phiSeriesInstanceUID = null;
-		
-		public Entry(DicomObject dob, DicomObject cachedDOB) {
-			collection = dob.getElementValue(0x00131010).trim();
-			siteName = dob.getElementValue(0x00131012).trim();
-			patientID = dob.getPatientID().trim();
-			modality = dob.getModality().trim();
-			studyDate = dob.getStudyDate().trim();
-			studyDescription = dob.getStudyDescription().trim();
-			seriesDescription = dob.getSeriesDescription().trim();
-			seriesInstanceUID = dob.getSeriesInstanceUID().trim();
-			if (cachedDOB != null) {
-				phiPatientID = cachedDOB.getPatientID().trim();
-				phiStudyDate = cachedDOB.getStudyDate().trim();
-				phiSeriesInstanceUID = cachedDOB.getSeriesInstanceUID().trim();
+	/**
+	 * Get the log as an XLSX file.
+	 */
+	public synchronized byte[] toHistoryXLSX(boolean includePHI) throws Exception {
+	    Workbook wb = new XSSFWorkbook();
+		Sheet sheet = wb.createSheet("TCIA-History");
+		Row row = sheet.createRow((short)0);
+		CellStyle style = wb.createCellStyle();
+		Font font = wb.createFont();
+		font.setBold(true);
+		style.setFont(font);
+		String[] columnNames = (includePHI ? historyPHIColumnNames : historyColumnNames);
+		for (int i=0; i<columnNames.length; i++) {
+			Cell cell = row.createCell(i);
+			cell.setCellValue(columnNames[i]);
+			cell.setCellStyle(style);
+		}	
+		try {
+			LinkedList<ExportManifestEntry> list = new LinkedList<ExportManifestEntry>();
+			FastIterator f = seriesIndex.values();
+			ExportManifestEntry entry;
+			while ( (entry=(ExportManifestEntry)f.next()) != null ) {
+				list.add(entry);
+			}
+			ExportManifestEntry[] eArray = new ExportManifestEntry[list.size()];
+			eArray = list.toArray(eArray);
+			Arrays.sort(eArray);
+			int nextRow = 2;
+			for (ExportManifestEntry e : eArray) {
+				nextRow = e.toXLSX(sheet, nextRow, includePHI, true); //true = include dates
 			}
 		}
-		public String toCSV(boolean includePHI) {
-			StringBuffer sb = new StringBuffer();
-			sb.append("=(\""+collection+"\"),");
-			sb.append("=(\""+siteName+"\"),");
-			if (includePHI) sb.append("=(\""+phiPatientID+"\"),");
-			sb.append("=(\""+patientID+"\"),");
-			if (includePHI) sb.append("=(\""+phiStudyDate+"\"),");
-			sb.append("=(\""+studyDate+"\"),");
-			if (includePHI) sb.append("=(\""+phiSeriesInstanceUID+"\"),");
-			sb.append("=(\""+seriesInstanceUID+"\"),");
-			sb.append("=(\""+studyDescription+"\"),");
-			sb.append("=(\""+seriesDescription+"\"),");
-			sb.append("=(\""+modality+"\"),");
-			sb.append("\""+numFiles+"\",");
-			sb.append(eol);
-			return sb.toString();
-		}
-		public Element toXML(Document doc, boolean includePHI) {
-			Element series = doc.createElement("Series");
-			append(doc, series, "Collection", collection);
-			append(doc, series, "SiteName", siteName);
-			append(doc, series, "PatientID", patientID, phiPatientID, includePHI);
-			append(doc, series, "StudyDate", studyDate, phiStudyDate, includePHI);
-			append(doc, series, "SeriesInstanceUID", seriesInstanceUID, phiSeriesInstanceUID, includePHI);
-			append(doc, series, "StudyDescription", studyDescription);
-			append(doc, series, "SeriesDescription", seriesDescription);
-			append(doc, series, "Modality", modality);
-			append(doc, series, "NumFiles", Integer.toString(numFiles));
-			return series;
-		}
-		public int toXLSX(Sheet sheet, int rowNumber, boolean includePHI) {
-			Row row = sheet.createRow((short)rowNumber);
-			int cell = 0;
-			row.createCell(cell++).setCellValue(collection);
-			row.createCell(cell++).setCellValue(siteName);
-			if (includePHI) row.createCell(cell++).setCellValue(phiPatientID);
-			row.createCell(cell++).setCellValue(patientID);
-			if (includePHI) row.createCell(cell++).setCellValue(phiStudyDate);
-			row.createCell(cell++).setCellValue(studyDate);
-			if (includePHI) row.createCell(cell++).setCellValue(phiSeriesInstanceUID);
-			row.createCell(cell++).setCellValue(seriesInstanceUID);
-			row.createCell(cell++).setCellValue(studyDescription);
-			row.createCell(cell++).setCellValue(seriesDescription);
-			row.createCell(cell++).setCellValue(modality);
-			row.createCell(cell++).setCellValue(numFiles);
-			return rowNumber + 1;
-		}
- 		private void append(Document doc, Element parent, String elementName, String value) {
-			Element e = doc.createElement(elementName);
-			e.setAttribute("value", value);
-			parent.appendChild(e);
-		}
-		private void append(Document doc, Element parent, String elementName, String value, String phi, boolean includePHI) {
-			Element e = doc.createElement(elementName);
-			e.setAttribute("value", value);
-			if (includePHI) e.setAttribute("phi", phi);
-			parent.appendChild(e);
-		}
-		public int compareTo(Entry e) {
-			int c = patientID.compareTo(e.patientID);
-			if (c != 0) return c;
-			c = seriesInstanceUID.compareTo(e.seriesInstanceUID);
-			return c;
-		}
+		catch (Exception unable) { /*just return the titles*/ }
+		for (int i=0; i<14; i++) sheet.autoSizeColumn(i);
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		wb.write(baos);
+		return baos.toByteArray();
 	}
 	
 }

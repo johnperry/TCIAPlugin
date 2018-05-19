@@ -11,6 +11,7 @@
 	<path id="classpath">
 		<pathelement location="${libraries}/util.jar"/>
 		<pathelement location="${libraries}/CTP.jar"/>
+		<pathelement location="${libraries}/jdbm.jar"/>
 		<pathelement location="${libraries}/log4j.jar"/>
 		<pathelement location="${libraries}/poi/poi-3.17.jar"/>
 		<pathelement location="${libraries}/poi/poi-ooxml-3.17.jar"/>
@@ -38,6 +39,7 @@
 			<fileset dir="${ctp}/libraries">
 				<include name="CTP.jar"/>
 				<include name="util.jar"/>
+				<include name="jdbm.jar"/>
 				<include name="log4j.jar"/>
 			</fileset>
 		</copy>
