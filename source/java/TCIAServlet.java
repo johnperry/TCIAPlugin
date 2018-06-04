@@ -1,6 +1,8 @@
 package edu.uams.tcia;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Date;
@@ -66,7 +68,7 @@ public class TCIAServlet extends Servlet {
 	 */
 	public void doGet(HttpRequest req, HttpResponse res) throws Exception {
 		
-/**/	logger.debug(req.toString());
+		if (logger.isDebugEnabled()) logger.debug(req.toString());
 
 		//Make sure the user is authorized to do this.
 		if (!req.userHasRole("admin") && !req.userHasRole("tcia")) {
@@ -214,6 +216,22 @@ public class TCIAServlet extends Servlet {
 					res.write(exportManifestPlugin.toHistoryXLSX(includePHI));
 					res.setContentType("xlsx");
 					res.setContentDisposition(new File("History"+(includePHI?"(PHI)":"")+".xlsx"));
+				}
+				else if (function.equals("exportHistory")) {
+					boolean ok = true;
+					File dir = tciaPlugin.getExportInput().getImportDirectory();
+					try {
+						byte[] history = exportManifestPlugin.toHistoryXLSX(false);
+						File file = File.createTempFile("HIS-", ".xlsx", dir);
+						FileOutputStream fos = new FileOutputStream(file);
+						BufferedOutputStream bos = new BufferedOutputStream(fos);
+						bos.write(history, 0, history.length);
+						bos.flush();
+						bos.close();
+						ok = true;
+					}
+					catch (Exception ex) { ok = false; }
+					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("listLookupTableTemplate")) {
 					res.write(importManifestPlugin.getLookupTableTemplate(req.getParameter("id")));
