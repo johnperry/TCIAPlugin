@@ -294,6 +294,8 @@ public class TCIAServlet extends Servlet {
 				else if (function.equals("listFiles")) {
 					try {
 						boolean dcmOnly = req.hasParameter("dcm");
+						int acceptedFileCount = 0;
+						int skippedFileCount = 0;
 						File dir = new File(req.getParameter("dir","/")).getAbsoluteFile();
 						File parent = dir.getParentFile();
 						File[] files = dir.listFiles();
@@ -316,13 +318,18 @@ public class TCIAServlet extends Servlet {
 						}
 						for (File file : files) {
 							if (file.isFile()) {
-								if (!dcmOnly || isDICOM(file)) {
+								boolean isDICOM = isDICOM(file);
+								if (!dcmOnly || isDICOM) {
+									acceptedFileCount++;
 									Element e = doc.createElement("file");
 									e.setAttribute("name", file.getName());
 									root.appendChild(e);
 								}
+								else if (dcmOnly) skippedFileCount++;
 							}
 						}
+						root.setAttribute("acceptedFileCount", Integer.toString(acceptedFileCount));
+						root.setAttribute("skippedFileCount", Integer.toString(skippedFileCount));
 						res.write(XmlUtil.toPrettyString(root));
 					}
 					catch (Exception ex) { res.write("<dir/>"); }
@@ -350,7 +357,7 @@ public class TCIAServlet extends Servlet {
 							" total=\""+total+"\" units=\""+units+"\"/>");
 				}
 				else if (function.equals("submitFile") || function.equals("submitFiles")) {
-					boolean ok = true;
+					Status status = new Status();
 					try {
 						String pathseq = req.getParameter("file", req.getParameter("files"));
 						String[] paths = pathseq.split("\\|");
@@ -359,12 +366,14 @@ public class TCIAServlet extends Servlet {
 						QueueManager queue = dis.getQueueManager();
 						for (String p : paths) {
 							File file = new File(p);
-							if (file.exists()) ok &= submitFile(file, destdir, queue);
-							else ok = false;
+							if (file.exists()) submitFile(status, file, destdir, queue);
 						}
 					}
-					catch (Exception ex) { ok = false; }
-					res.write( ok ? "<OK/>" : "<NOTOK/>" );
+					catch (Exception ex) { status.update( false ); }
+					res.write( status.success ? "<OK" : "<NOTOK" ); 
+					res.write( " acceptedFileCount=\"" + status.acceptedFileCount + "\"" );
+					res.write( " skippedFileCount=\"" + status.skippedFileCount + "\"" );
+					res.write( "/>" ); 
 				}
 				else if (function.equals("listElements")) {
 					File file = new File(req.getParameter("file"));
@@ -658,30 +667,50 @@ public class TCIAServlet extends Servlet {
 	//If the supplied file is a directory copy the contents of the
 	//directory and all its subdirectories.
 	//Note that the destination is a flat directory (with no substructure).
-	private boolean submitFile(File file, File toDir, QueueManager queue) {
-		boolean ok = true;
+	private void submitFile(Status status, File file, File toDir, QueueManager queue) {
 		if (file.exists()) {
 			if (file.isDirectory()) {
 				File[] files = file.listFiles();
 				for (File f : files) {
-					ok &= submitFile(f, toDir, queue);
+					submitFile(status, f, toDir, queue);
 				}
 			}
 			else if (file.isFile()) {
 				try {
 					DicomObject dob = null;
 					try { dob = new DicomObject(file); }
-					catch (Exception ex) { return true; } //ignore non-DICOM files
+					catch (Exception ex) { 
+						status.countSkippedFile();
+						return;
+					}
 					File destFile = File.createTempFile("DCM-", ".partial", toDir);
-					ok &= dob.copyTo(destFile);
+					boolean ok = dob.copyTo(destFile);
+					status.update( ok );
+					if (ok) status.countAcceptedFile();
 					queue.enqueue(destFile);
 					destFile.delete();
 				}
-				catch (Exception ex) { ok = false; }
+				catch (Exception ex) { status.update( false ); }
 			}
 		}
-		return ok;			
 	}
+	
+	class Status {
+		public int acceptedFileCount = 0;
+		public int skippedFileCount = 0;
+		public boolean success = true;
+		public Status() { }
+		public void countAcceptedFile() {
+			acceptedFileCount++;
+		}
+		public void countSkippedFile() {
+			skippedFileCount++;
+		}
+		public void update(boolean ok) {
+			success &= ok;
+		}
+	}
+		
 	
 	//List files
 	private Element listFiles(File dir) {
