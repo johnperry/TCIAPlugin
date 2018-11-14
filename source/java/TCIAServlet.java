@@ -358,6 +358,7 @@ public class TCIAServlet extends Servlet {
 				}
 				else if (function.equals("submitFile") || function.equals("submitFiles")) {
 					Status status = new Status();
+					tciaPlugin.setAbortImport(false);
 					try {
 						String pathseq = req.getParameter("file", req.getParameter("files"));
 						String[] paths = pathseq.split("\\|");
@@ -366,7 +367,7 @@ public class TCIAServlet extends Servlet {
 						QueueManager queue = dis.getQueueManager();
 						for (String p : paths) {
 							File file = new File(p);
-							if (file.exists()) submitFile(status, file, destdir, queue);
+							if (file.exists()) submitFile(status, file, destdir, queue, tciaPlugin);
 						}
 					}
 					catch (Exception ex) { status.update( false ); }
@@ -374,6 +375,10 @@ public class TCIAServlet extends Servlet {
 					res.write( " acceptedFileCount=\"" + status.acceptedFileCount + "\"" );
 					res.write( " skippedFileCount=\"" + status.skippedFileCount + "\"" );
 					res.write( "/>" ); 
+				}
+				else if (function.equals("abortImport")) {
+					tciaPlugin.setAbortImport(true);
+					res.write( "<OK/>" );
 				}
 				else if (function.equals("listElements")) {
 					File file = new File(req.getParameter("file"));
@@ -417,6 +422,15 @@ public class TCIAServlet extends Servlet {
 					Pipeline pipe = anonymizer.getPipeline();
 					pipe.setPaused(true);
 					res.write( "<OK/>" );
+				}
+				else if (function.equals("exportStatus")) {
+					DirectoryImportService dis = tciaPlugin.getExportInput();
+					HttpExportService hes = tciaPlugin.getExportOutput();
+					int n = FileUtil.getFileCount(dis.getImportDirectory()) 
+							+ hes.getCacheManager().size() 
+							+ hes.getQueueManager().size();
+					if (n > 0) res.write("<ACTIVE/>");
+					else res.write("<INACTIVE/>");
 				}
 				else if (function.equals("restart")) {
 					DicomAnonymizer anonymizer = tciaPlugin.getAnonymizer();
@@ -667,12 +681,12 @@ public class TCIAServlet extends Servlet {
 	//If the supplied file is a directory copy the contents of the
 	//directory and all its subdirectories.
 	//Note that the destination is a flat directory (with no substructure).
-	private void submitFile(Status status, File file, File toDir, QueueManager queue) {
-		if (file.exists()) {
+	private void submitFile(Status status, File file, File toDir, QueueManager queue, TCIAPlugin tciaPlugin) {
+		if (file.exists() && !tciaPlugin.getAbortImport()) {
 			if (file.isDirectory()) {
 				File[] files = file.listFiles();
 				for (File f : files) {
-					submitFile(status, f, toDir, queue);
+					submitFile(status, f, toDir, queue, tciaPlugin);
 				}
 			}
 			else if (file.isFile()) {

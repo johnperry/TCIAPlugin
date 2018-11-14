@@ -47,6 +47,8 @@ public class TCIAPlugin extends AbstractPlugin {
 	ExportManifestLogPlugin exportManifestLog;
 	ImportManifestLogPlugin importManifestLog;
 	
+	boolean abortImport = false;
+	
 	/**
 	 * IMPORTANT: When the constructor is called, neither the
 	 * pipelines nor the HttpServer have necessarily been
@@ -267,6 +269,20 @@ public class TCIAPlugin extends AbstractPlugin {
 	 */
 	public ImportManifestLogPlugin getImportManifestLog() {
 		return importManifestLog;
+	}
+	
+	/**
+	 * Set the abortImport flag.
+	 */
+	public synchronized void setAbortImport(boolean abortImport) {
+		this.abortImport = abortImport;
+	}
+	
+	/**
+	 * Get the abortImport flag.
+	 */
+	public synchronized boolean getAbortImport() {
+		return this.abortImport;
 	}
 	
 }
