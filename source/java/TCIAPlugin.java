@@ -114,6 +114,13 @@ public class TCIAPlugin extends AbstractPlugin {
 		HttpServer server = config.getServer();
 		ServletSelector selector = server.getServletSelector();
 		selector.addServlet(id, TCIAServlet.class);
+		
+		//Put the .metadata_never_index file in the parent of the root directory
+		File parentDir = root.getParentFile();
+		File mniFile = new File(parentDir, ".metadata_never_index");
+		root.mkdirs(); //just to make sure
+		try { mniFile.createNewFile(); }
+		catch (Exception ex) { logger.warn("Unable to create "+mniFile); }
 				
 		logger.info("TCIAPlugin started with context \""+id+"\"");
 	}
