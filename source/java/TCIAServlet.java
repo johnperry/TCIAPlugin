@@ -427,7 +427,8 @@ public class TCIAServlet extends Servlet {
 					DirectoryImportService dis = tciaPlugin.getExportInput();
 					HttpExportService hes = tciaPlugin.getExportOutput();
 					int n = FileUtil.getFileCount(dis.getImportDirectory()) 
-							+ hes.getCacheManager().size() 
+							+ dis.getQueueManager().size()
+							+ (hes.hasCache() ? hes.getCacheManager().size() : 0)
 							+ hes.getQueueManager().size();
 					if (n > 0) res.write("<ACTIVE/>");
 					else res.write("<INACTIVE/>");
