@@ -287,9 +287,9 @@ public class TCIAServlet extends Servlet {
 					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("getExportQueueSize")) {
-					HttpExportService httpExport = tciaPlugin.getExportOutput();
-					int size = httpExport.getQueueManager().size();
-					res.write("<queue stage=\""+httpExport.getName()+"\" size=\""+size+"\"/>");
+					PosdaExportService posdaExport = tciaPlugin.getExportOutput();
+					int size = posdaExport.getQueueManager().size();
+					res.write("<queue stage=\""+posdaExport.getName()+"\" size=\""+size+"\"/>");
 				}
 				else if (function.equals("listFiles")) {
 					try {
@@ -425,7 +425,7 @@ public class TCIAServlet extends Servlet {
 				}
 				else if (function.equals("exportStatus")) {
 					DirectoryImportService dis = tciaPlugin.getExportInput();
-					HttpExportService hes = tciaPlugin.getExportOutput();
+					PosdaExportService hes = tciaPlugin.getExportOutput();
 					int n = FileUtil.getFileCount(dis.getImportDirectory()) 
 							+ dis.getQueueManager().size()
 							+ (hes.hasCache() ? hes.getCacheManager().size() : 0)

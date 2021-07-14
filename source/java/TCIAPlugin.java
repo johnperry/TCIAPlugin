@@ -43,7 +43,7 @@ public class TCIAPlugin extends AbstractPlugin {
 	DicomAnonymizer anonymizer;
 	DirectoryStorageService anonymizerStorage;
 	DirectoryImportService exportInput;
-	HttpExportService exportOutput;
+	PosdaExportService exportOutput;
 	ExportManifestLogPlugin exportManifestLog;
 	ImportManifestLogPlugin importManifestLog;
 	
@@ -103,7 +103,7 @@ public class TCIAPlugin extends AbstractPlugin {
 		anonymizer = getDAStage(anonymizerID);
 		anonymizerStorage = getDSSStage(anonymizerStorageID);
 		exportInput = getDISStage(exportInputID);
-		exportOutput = getHttpExportStage(exportOutputID);
+		exportOutput = getPosdaExportStage(exportOutputID);
 		
 		//Get the ManifestLogs
 		importManifestLog = getImportManifestLogPlugin(importManifestLogID);
@@ -170,17 +170,17 @@ public class TCIAPlugin extends AbstractPlugin {
 		}		
 	}
 	
-	private HttpExportService getHttpExportStage(String id) {
+	private PosdaExportService getPosdaExportStage(String id) {
 		PipelineStage stage = Configuration.getInstance().getRegisteredStage(id);
 		if (stage == null) {
 			logger.warn(name+": referenced stage does not exist ("+id+")");
 			return null;
 		}
-		if (stage instanceof HttpExportService) {
-			return (HttpExportService)stage;
+		if (stage instanceof PosdaExportService) {
+			return (PosdaExportService)stage;
 		}
 		else {
-			logger.warn(name+": referenced stage is not a HttpExportService ("+id+")");
+			logger.warn(name+": referenced stage is not a PosdaExportService ("+id+")");
 			return null;
 		}		
 	}
@@ -258,9 +258,9 @@ public class TCIAPlugin extends AbstractPlugin {
 	}
 	
 	/**
-	 * Get the HttpExportService of the export pipeline.
+	 * Get the PosdaExportService of the export pipeline.
 	 */
-	public HttpExportService getExportOutput() {
+	public PosdaExportService getExportOutput() {
 		return exportOutput;
 	}
 	
