@@ -73,6 +73,26 @@
 				<helptext>The ID of the ImportManifestLogPlugin.</helptext>
 			</attr>
 		</Processor>
+		
+		<ExportService>
+			<attr name="name" required="yes" default="PosdaExportService"/>
+			<attr name="class" required="yes" default="edu.uams.tcia.PosdaExportService" editable="no"/>
+			<attr name="id" required="no" default=""/>
+			<attr name="root" required="yes" default="roots/PosdaExportService"/>
+			<attr name="url" required="yes" default="">
+				<helptext>URL of the destination Posda server (with no protocol or path information)</helptext>
+			</attr>
+			<attr name="acceptDicomObjects" required="no" default="yes" options="yes|no"/>
+			<attr name="acceptXmlObjects" required="no" default="yes" options="yes|no"/>
+			<attr name="acceptZipObjects" required="no" default="yes" options="yes|no"/>
+			<attr name="acceptFileObjects" required="no" default="yes" options="yes|no"/>
+			<attr name="dicomScript" required="no" default=""/>
+			<attr name="xmlScript" required="no" default=""/>
+			<attr name="zipScript" required="no" default=""/>
+			<attr name="quarantine" required="yes" default="quarantines/HttpExportService"/>
+			<attr name="quarantineTimeDepth" required="no" default="0"/>
+		</ExportService>
+
 	</Components>
 
 </TemplateDefinitions>
