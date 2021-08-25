@@ -82,6 +82,9 @@
 			<attr name="url" required="yes" default="">
 				<helptext>URL of the destination Posda server (with no protocol or path information)</helptext>
 			</attr>
+			<attr name="apikey" required="yes" default="">
+				<helptext>Key for Posda server API</helptext>
+			</attr>
 			<attr name="acceptDicomObjects" required="no" default="yes" options="yes|no"/>
 			<attr name="acceptXmlObjects" required="no" default="yes" options="yes|no"/>
 			<attr name="acceptZipObjects" required="no" default="yes" options="yes|no"/>

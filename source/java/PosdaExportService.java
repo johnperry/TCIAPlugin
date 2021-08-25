@@ -40,6 +40,7 @@ public class PosdaExportService extends AbstractExportService {
 	final int readTimeout = 120 * oneSecond;
 
 	String url;
+	String apikey;
 	String protocol;
 	String contentType = "application/x-mirc";
 	boolean logUnauthorizedResponses = true;
@@ -56,7 +57,9 @@ public class PosdaExportService extends AbstractExportService {
 
 		//Get the destination url
 		url = element.getAttribute("url").trim();
-		logger.info(name+": "+url);
+		apikey = element.getAttribute("apikey").trim();
+		logger.info(name+": url: "+url);
+		logger.info(name+": apikey: \""+apikey+"\"");
 	}
 	
 	/**
@@ -81,7 +84,9 @@ public class PosdaExportService extends AbstractExportService {
 			}
 
 			String hash = getDigest(fileToExport).toLowerCase();
-			URL u = new URL(getURL() + "?import_event_id="+eventID+"&digest="+hash);
+			String query = "?import_event_id="+eventID+"&digest="+hash;
+			if (!apikey.equals("")) query += "&apikey="+apikey;
+			URL u = new URL(getURL() + query);
 			
 			//Establish the connection
 			conn = HttpUtil.getConnection(u);
@@ -126,7 +131,9 @@ public class PosdaExportService extends AbstractExportService {
 	}
 
 	public String getEventIDRequestURL(String message) throws Exception {
-		return url + "/papi/v1/import/event?source=" + message;
+		String u = url + "/papi/v1/import/event?source=" + message;
+		if (!apikey.equals("")) u += "&apikey="+apikey;
+		return u;
 	}
 		
 	//curl -X PUT http://localhost/papi/v1/import/event?source=some+useful+message
