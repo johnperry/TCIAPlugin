@@ -127,16 +127,16 @@ public class PosdaExportService extends AbstractExportService {
 	}
 	
 	public String getURL() throws Exception {
-		return url + "/papi/v1/import/file";
+		return url + "/v1/import/file";
 	}
 
 	public String getEventIDRequestURL(String message) throws Exception {
-		String u = url + "/papi/v1/import/event?source=" + message;
+		String u = url + "/v1/import/event?source=" + message;
 		if (!apikey.equals("")) u += "&apikey="+apikey;
 		return u;
 	}
 		
-	//curl -X PUT http://localhost/papi/v1/import/event?source=some+useful+message
+	//curl -X PUT http://localhost/.../v1/import/event?source=some+useful+message
 	//{"status":"success","import_event_id":15}
 	private String getImportEventID(String message) {
 		HttpURLConnection conn = null;
