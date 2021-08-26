@@ -78,6 +78,8 @@ public class PosdaExportService extends AbstractExportService {
 		try {
 			FileObject fileObject = FileObject.getInstance( fileToExport );
 			String patientID = fileObject.getPatientID();
+			if (patientID == null) patientID = "UNKNOWN";
+			patientID = patientID.trim();
 			if ((lastPatientID == null) || !patientID.equals(lastPatientID)) {
 				lastPatientID = patientID;
 				eventID = getImportEventID(patientID);
