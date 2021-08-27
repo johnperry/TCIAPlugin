@@ -44,7 +44,7 @@ public class PosdaExportService extends AbstractExportService {
 	String protocol;
 	String contentType = "application/x-mirc";
 	boolean logUnauthorizedResponses = true;
-	String lastPatientID = "";
+	String lastPatientID = null;
 	String eventID = "0";
 
 	/**
@@ -78,16 +78,23 @@ public class PosdaExportService extends AbstractExportService {
 		try {
 			FileObject fileObject = FileObject.getInstance( fileToExport );
 			String patientID = fileObject.getPatientID();
-			if ((patientID == null) || patientID.trim().equals("")) patientID = "UNKNOWN";
+			if ((patientID == null) || patientID.trim().equals("")) {
+				logger.debug("PatientID = "+patientID+" - replacing with UNKNOWN");
+				patientID = "UNKNOWN";
+			}
 			if ((lastPatientID == null) || !patientID.equals(lastPatientID)) {
+				logger.debug("Getting new eventID");
+				logger.debug("...lastPatientID = "+lastPatientID+" - patientID = "+patientID);
 				lastPatientID = patientID;
 				eventID = getImportEventID(patientID);
+				logger.debug("...new eventID = "+eventID);
 			}
 
 			String hash = getDigest(fileToExport).toLowerCase();
 			String query = "?import_event_id="+eventID+"&digest="+hash;
 			if (!apikey.equals("")) query += "&apikey="+apikey;
 			URL u = new URL(getURL() + query);
+			logger.debug("Export URL: "+url.toString());
 			
 			//Establish the connection
 			conn = HttpUtil.getConnection(u);
@@ -143,14 +150,14 @@ public class PosdaExportService extends AbstractExportService {
 		HttpURLConnection conn = null;
 		try {
 			URL u = new URL(getEventIDRequestURL(message));
+			logger.debug("getImportEventID URL: "+u.toString());
 			conn = HttpUtil.getConnection(u);
 			conn.setReadTimeout(connectionTimeout);
 			conn.setConnectTimeout(readTimeout);
 			conn.setRequestMethod("PUT");
 			conn.connect();
 			int responseCode = conn.getResponseCode();
-			logger.debug("getImportEventID responseCode: " + responseCode);
-			logger.debug("...url: " + u.toString());
+			logger.debug("...responseCode: " + responseCode);
 			String text = FileUtil.getTextOrException( conn.getInputStream(), FileUtil.utf8, false );
 			conn.disconnect();
 			logger.debug("...got import_event_id: "+text);
@@ -162,7 +169,7 @@ public class PosdaExportService extends AbstractExportService {
 			return text;
 		}
 		catch (Exception unable) { 
-			logger.debug("Unable to get import_event_id; returning 0");
+			logger.debug("...unable to get import_event_id; returning 0");
 			return "0"; 
 		}
 	}
