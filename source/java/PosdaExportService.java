@@ -79,12 +79,16 @@ public class PosdaExportService extends AbstractExportService {
 			FileObject fileObject = FileObject.getInstance( fileToExport );
 			String patientID = fileObject.getPatientID();
 			if ((patientID == null) || patientID.trim().equals("")) {
-				logger.debug("PatientID = "+patientID+" - replacing with UNKNOWN");
+				logger.debug("PatientID null or blank");
+				logger.debug("...Object instance: "+fileObject.getClass().getName());
+				logger.debug("...PatientID = \""+patientID+"\"");
+				logger.debug("...replacing with UNKNOWN");
 				patientID = "UNKNOWN";
 			}
 			if ((lastPatientID == null) || !patientID.equals(lastPatientID)) {
-				logger.debug("Getting new eventID");
-				logger.debug("...lastPatientID = "+lastPatientID+" - patientID = "+patientID);
+				logger.debug("Requesting new eventID");
+				logger.debug("...lastPatientID = \""+lastPatientID+"\"");
+				logger.debug("...patientID = \""+patientID+"\"");
 				lastPatientID = patientID;
 				eventID = getImportEventID(patientID);
 				logger.debug("...new eventID = "+eventID);
@@ -94,7 +98,7 @@ public class PosdaExportService extends AbstractExportService {
 			String query = "?import_event_id="+eventID+"&digest="+hash;
 			if (!apikey.equals("")) query += "&apikey="+apikey;
 			URL u = new URL(getURL() + query);
-			logger.debug("Export URL: "+url.toString());
+			logger.debug("Export URL: "+u.toString());
 			
 			//Establish the connection
 			conn = HttpUtil.getConnection(u);
@@ -150,7 +154,8 @@ public class PosdaExportService extends AbstractExportService {
 		HttpURLConnection conn = null;
 		try {
 			URL u = new URL(getEventIDRequestURL(message));
-			logger.debug("getImportEventID URL: "+u.toString());
+			logger.debug("getImportEventID");
+			logger.debug("...URL: "+u.toString());
 			conn = HttpUtil.getConnection(u);
 			conn.setReadTimeout(connectionTimeout);
 			conn.setConnectTimeout(readTimeout);
@@ -160,7 +165,7 @@ public class PosdaExportService extends AbstractExportService {
 			logger.debug("...responseCode: " + responseCode);
 			String text = FileUtil.getTextOrException( conn.getInputStream(), FileUtil.utf8, false );
 			conn.disconnect();
-			logger.debug("...got import_event_id: "+text);
+			logger.debug("...response text: \""+text+"\"");
 			if (text.contains("\"status\":\"success\"") && text.contains("\"import_event_id\":")) {
 				text = text.replaceAll("[^0-9]", "");
 			}
