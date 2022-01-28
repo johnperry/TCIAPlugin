@@ -10,7 +10,7 @@ import org.rsna.ctp.plugin.AbstractPlugin;
 import org.rsna.ctp.stdstages.DicomAnonymizer;
 import org.rsna.ctp.stdstages.DirectoryImportService;
 import org.rsna.ctp.stdstages.DirectoryStorageService;
-import org.rsna.ctp.stdstages.HttpExportService;
+import org.rsna.ctp.pipeline.AbstractQueuedExportService;
 import org.rsna.server.HttpServer;
 import org.rsna.server.Path;
 import org.rsna.server.ServletSelector;
@@ -43,7 +43,7 @@ public class TCIAPlugin extends AbstractPlugin {
 	DicomAnonymizer anonymizer;
 	DirectoryStorageService anonymizerStorage;
 	DirectoryImportService exportInput;
-	PosdaExportService exportOutput;
+	AbstractQueuedExportService exportOutput;
 	ExportManifestLogPlugin exportManifestLog;
 	ImportManifestLogPlugin importManifestLog;
 	
@@ -103,7 +103,7 @@ public class TCIAPlugin extends AbstractPlugin {
 		anonymizer = getDAStage(anonymizerID);
 		anonymizerStorage = getDSSStage(anonymizerStorageID);
 		exportInput = getDISStage(exportInputID);
-		exportOutput = getPosdaExportStage(exportOutputID);
+		exportOutput = getExportStage(exportOutputID);
 		
 		//Get the ManifestLogs
 		importManifestLog = getImportManifestLogPlugin(importManifestLogID);
@@ -170,17 +170,17 @@ public class TCIAPlugin extends AbstractPlugin {
 		}		
 	}
 	
-	private PosdaExportService getPosdaExportStage(String id) {
+	private AbstractQueuedExportService getExportStage(String id) {
 		PipelineStage stage = Configuration.getInstance().getRegisteredStage(id);
 		if (stage == null) {
 			logger.warn(name+": referenced stage does not exist ("+id+")");
 			return null;
 		}
-		if (stage instanceof PosdaExportService) {
-			return (PosdaExportService)stage;
+		if (stage instanceof AbstractQueuedExportService) {
+			return (AbstractQueuedExportService)stage;
 		}
 		else {
-			logger.warn(name+": referenced stage is not a PosdaExportService ("+id+")");
+			logger.warn(name+": referenced stage is not an AbstractQueuedExportService ("+id+")");
 			return null;
 		}		
 	}
@@ -258,9 +258,9 @@ public class TCIAPlugin extends AbstractPlugin {
 	}
 	
 	/**
-	 * Get the PosdaExportService of the export pipeline.
+	 * Get the AbstractQueuedExportService of the export pipeline.
 	 */
-	public PosdaExportService getExportOutput() {
+	public AbstractQueuedExportService getExportOutput() {
 		return exportOutput;
 	}
 	

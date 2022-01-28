@@ -1,4 +1,4 @@
-package edu.uams.tcia;
+package org.rsna.ctp.stdstages;
 
 import java.io.*;
 import java.net.HttpURLConnection;

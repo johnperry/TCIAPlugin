@@ -16,6 +16,7 @@ import org.rsna.ctp.Configuration;
 import org.rsna.ctp.objects.FileObject;
 import org.rsna.ctp.objects.DicomObject;
 import org.rsna.ctp.pipeline.AbstractImportService;
+import org.rsna.ctp.pipeline.AbstractQueuedExportService;
 import org.rsna.ctp.pipeline.Pipeline;
 import org.rsna.ctp.pipeline.PipelineStage;
 import org.rsna.ctp.pipeline.QueueManager;
@@ -24,7 +25,6 @@ import org.rsna.ctp.stdstages.anonymizer.LookupTable;
 import org.rsna.ctp.stdstages.DicomAnonymizer;
 import org.rsna.ctp.stdstages.DirectoryImportService;
 import org.rsna.ctp.stdstages.DirectoryStorageService;
-import org.rsna.ctp.stdstages.HttpExportService;
 import org.rsna.multipart.UploadedFile;
 import org.rsna.server.HttpRequest;
 import org.rsna.server.HttpResponse;
@@ -287,9 +287,9 @@ public class TCIAServlet extends Servlet {
 					res.write( ok ? "<OK/>" : "<NOTOK/>" );
 				}
 				else if (function.equals("getExportQueueSize")) {
-					PosdaExportService posdaExport = tciaPlugin.getExportOutput();
-					int size = posdaExport.getQueueManager().size();
-					res.write("<queue stage=\""+posdaExport.getName()+"\" size=\""+size+"\"/>");
+					AbstractQueuedExportService exportService = tciaPlugin.getExportOutput();
+					int size = exportService.getQueueManager().size();
+					res.write("<queue stage=\""+exportService.getName()+"\" size=\""+size+"\"/>");
 				}
 				else if (function.equals("listFiles")) {
 					try {
@@ -425,7 +425,7 @@ public class TCIAServlet extends Servlet {
 				}
 				else if (function.equals("exportStatus")) {
 					DirectoryImportService dis = tciaPlugin.getExportInput();
-					PosdaExportService hes = tciaPlugin.getExportOutput();
+					AbstractQueuedExportService hes = tciaPlugin.getExportOutput();
 					int n = FileUtil.getFileCount(dis.getImportDirectory()) 
 							+ dis.getQueueManager().size()
 							+ (hes.hasCache() ? hes.getCacheManager().size() : 0)
